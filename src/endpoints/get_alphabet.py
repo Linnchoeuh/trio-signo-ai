@@ -38,15 +38,17 @@ def get_alpahabet():
             target_width = int(original_width / original_height * target_height)
 
         image = cv2.resize(image, (target_width, target_height))
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Ensure the image is in RGB format
 
         base_options = python.BaseOptions(model_asset_path="hand_landmarker.task")
         options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options,
-                                                                      num_hands=2,
+                                                                      num_hands=1,
                                                                       min_hand_detection_confidence=0,
                                                                       min_hand_presence_confidence=0.1,
                                                                       min_tracking_confidence=0)
         recognizer: HandLandmarker = vision.HandLandmarker.create_from_options(options)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
+
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
         recognition_result: HandLandmarkerResult = recognizer.detect(mp_image)
         print(recognition_result)
         # print(recognition_result)
