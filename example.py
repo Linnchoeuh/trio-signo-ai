@@ -31,6 +31,9 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 
+from src.alphabet_recognizer import *
+
+
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
@@ -67,6 +70,10 @@ def run(model: str, num_hands: int,
   cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
   cap.set(cv2.CAP_PROP_FPS, 10)
 
+  alphabet_model = LSFAlphabetRecognizer()
+  alphabet_model.load_state_dict(torch.load('model.pth'))
+
+
   # Visualization parameters
   row_size = 50  # pixels
   left_margin = 24  # pixels
@@ -88,39 +95,39 @@ def run(model: str, num_hands: int,
   options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options, num_hands=num_hands)
   recognizer: HandLandmarker = vision.HandLandmarker.create_from_options(options)
 
-  rot = 0
-  hand_land_mark_sample: HandLandmarkerResult = HandLandmarkerResult(
-    handedness=[
-      [
-        Category(index=1, score=0.9808287620544434, display_name='Left', category_name='Left')
-      ]
-    ],
-    hand_landmarks=[
-      [
-        NormalizedLandmark(x=0.5319020748138428, y=0.7962105870246887, z=-1.7299203136644792e-06, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.40498512983322144, y=0.6947133541107178, z=-0.04039774090051651, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.31501683592796326, y=0.5539590716362, z=-0.06892881542444229, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.28282222151756287, y=0.4366796612739563, z=-0.10448870062828064, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.2843204438686371, y=0.3423454463481903, z=-0.1320517212152481, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.3968432545661926, y=0.4565330147743225, z=-0.0010129304137080908, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.3701673448085785, y=0.38136056065559387, z=-0.0762878954410553, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.3563051223754883, y=0.49079981446266174, z=-0.1235441043972969, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.35962867736816406, y=0.5872650146484375, z=-0.14277073740959167, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.4828438460826874, y=0.4765137732028961, z=-0.011338132433593273, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.44222167134284973, y=0.3964265286922455, z=-0.09743494540452957, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.42402100563049316, y=0.5223264694213867, z=-0.1276596337556839, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.4239838719367981, y=0.6264051198959351, z=-0.12886208295822144, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.5685567259788513, y=0.5005506873130798, z=-0.034298304468393326, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.5217825174331665, y=0.4339632987976074, z=-0.11662452667951584, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.4922289550304413, y=0.5575346946716309, z=-0.11019448190927505, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.4851895570755005, y=0.6522514820098877, z=-0.08272368460893631, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.6545895338058472, y=0.5324047803878784, z=-0.061504192650318146, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.6012856960296631, y=0.4729917645454407, z=-0.11010254919528961, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.5653286576271057, y=0.5568235516548157, z=-0.09773370623588562, visibility=0.0, presence=0.0),
-        NormalizedLandmark(x=0.5568661689758301, y=0.6289551854133606, z=-0.07455848902463913, visibility=0.0, presence=0.0)
-      ]
-    ],
-    hand_world_landmarks=[[Landmark(x=0.003892024978995323, y=0.07995378226041794, z=0.025405343621969223, visibility=0.0, presence=0.0), Landmark(x=-0.022338446229696274, y=0.05589314550161362, z=0.014720492996275425, visibility=0.0, presence=0.0), Landmark(x=-0.03438744321465492, y=0.026316216215491295, z=0.012074156664311886, visibility=0.0, presence=0.0), Landmark(x=-0.0499732680618763, y=-0.006862509995698929, z=0.00311045884154737, visibility=0.0, presence=0.0), Landmark(x=-0.05169311538338661, y=-0.03683273121714592, z=0.0017279835883527994, visibility=0.0, presence=0.0), Landmark(x=-0.026125196367502213, y=-0.006200079340487719, z=0.009383747354149818, visibility=0.0, presence=0.0), Landmark(x=-0.029047353193163872, y=-0.01661747694015503, z=-0.010647543705999851, visibility=0.0, presence=0.0), Landmark(x=-0.03508573770523071, y=-0.0043068574741482735, z=-0.014058736152946949, visibility=0.0, presence=0.0), Landmark(x=-0.038099031895399094, y=0.01868780329823494, z=-0.0016739910934120417, visibility=0.0, presence=0.0), Landmark(x=-0.0042168498039245605, y=-0.004792061634361744, z=0.005003639962524176, visibility=0.0, presence=0.0), Landmark(x=-0.010074470192193985, y=-0.022804751992225647, z=-0.024348050355911255, visibility=0.0, presence=0.0), Landmark(x=-0.020825453102588654, y=0.001553031150251627, z=-0.03452228382229805, visibility=0.0, presence=0.0), Landmark(x=-0.018797367811203003, y=0.022735845297574997, z=-0.016159210354089737, visibility=0.0, presence=0.0), Landmark(x=0.01731652207672596, y=0.0019369935616850853, z=-0.005837230011820793, visibility=0.0, presence=0.0), Landmark(x=0.00418469775468111, y=-0.006673002615571022, z=-0.03359675034880638, visibility=0.0, presence=0.0), Landmark(x=-0.004463871009647846, y=0.018061187118291855, z=-0.03715647757053375, visibility=0.0, presence=0.0), Landmark(x=-0.003312978893518448, y=0.03866640478372574, z=-0.020958006381988525, visibility=0.0, presence=0.0), Landmark(x=0.027814939618110657, y=0.01806008070707321, z=-0.015201061964035034, visibility=0.0, presence=0.0), Landmark(x=0.022301536053419113, y=0.004201916977763176, z=-0.03300260752439499, visibility=0.0, presence=0.0), Landmark(x=0.011858094483613968, y=0.01575622707605362, z=-0.042610377073287964, visibility=0.0, presence=0.0), Landmark(x=0.010728622786700726, y=0.033912476152181625, z=-0.03593865782022476, visibility=0.0, presence=0.0)]])
+  # rot = 0
+  # hand_land_mark_sample: HandLandmarkerResult = HandLandmarkerResult(
+  #   handedness=[
+  #     [
+  #       Category(index=1, score=0.9808287620544434, display_name='Left', category_name='Left')
+  #     ]
+  #   ],
+  #   hand_landmarks=[
+  #     [
+  #       NormalizedLandmark(x=0.5319020748138428, y=0.7962105870246887, z=-1.7299203136644792e-06, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.40498512983322144, y=0.6947133541107178, z=-0.04039774090051651, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.31501683592796326, y=0.5539590716362, z=-0.06892881542444229, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.28282222151756287, y=0.4366796612739563, z=-0.10448870062828064, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.2843204438686371, y=0.3423454463481903, z=-0.1320517212152481, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.3968432545661926, y=0.4565330147743225, z=-0.0010129304137080908, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.3701673448085785, y=0.38136056065559387, z=-0.0762878954410553, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.3563051223754883, y=0.49079981446266174, z=-0.1235441043972969, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.35962867736816406, y=0.5872650146484375, z=-0.14277073740959167, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.4828438460826874, y=0.4765137732028961, z=-0.011338132433593273, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.44222167134284973, y=0.3964265286922455, z=-0.09743494540452957, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.42402100563049316, y=0.5223264694213867, z=-0.1276596337556839, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.4239838719367981, y=0.6264051198959351, z=-0.12886208295822144, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.5685567259788513, y=0.5005506873130798, z=-0.034298304468393326, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.5217825174331665, y=0.4339632987976074, z=-0.11662452667951584, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.4922289550304413, y=0.5575346946716309, z=-0.11019448190927505, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.4851895570755005, y=0.6522514820098877, z=-0.08272368460893631, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.6545895338058472, y=0.5324047803878784, z=-0.061504192650318146, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.6012856960296631, y=0.4729917645454407, z=-0.11010254919528961, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.5653286576271057, y=0.5568235516548157, z=-0.09773370623588562, visibility=0.0, presence=0.0),
+  #       NormalizedLandmark(x=0.5568661689758301, y=0.6289551854133606, z=-0.07455848902463913, visibility=0.0, presence=0.0)
+  #     ]
+  #   ],
+  #   hand_world_landmarks=[[Landmark(x=0.003892024978995323, y=0.07995378226041794, z=0.025405343621969223, visibility=0.0, presence=0.0), Landmark(x=-0.022338446229696274, y=0.05589314550161362, z=0.014720492996275425, visibility=0.0, presence=0.0), Landmark(x=-0.03438744321465492, y=0.026316216215491295, z=0.012074156664311886, visibility=0.0, presence=0.0), Landmark(x=-0.0499732680618763, y=-0.006862509995698929, z=0.00311045884154737, visibility=0.0, presence=0.0), Landmark(x=-0.05169311538338661, y=-0.03683273121714592, z=0.0017279835883527994, visibility=0.0, presence=0.0), Landmark(x=-0.026125196367502213, y=-0.006200079340487719, z=0.009383747354149818, visibility=0.0, presence=0.0), Landmark(x=-0.029047353193163872, y=-0.01661747694015503, z=-0.010647543705999851, visibility=0.0, presence=0.0), Landmark(x=-0.03508573770523071, y=-0.0043068574741482735, z=-0.014058736152946949, visibility=0.0, presence=0.0), Landmark(x=-0.038099031895399094, y=0.01868780329823494, z=-0.0016739910934120417, visibility=0.0, presence=0.0), Landmark(x=-0.0042168498039245605, y=-0.004792061634361744, z=0.005003639962524176, visibility=0.0, presence=0.0), Landmark(x=-0.010074470192193985, y=-0.022804751992225647, z=-0.024348050355911255, visibility=0.0, presence=0.0), Landmark(x=-0.020825453102588654, y=0.001553031150251627, z=-0.03452228382229805, visibility=0.0, presence=0.0), Landmark(x=-0.018797367811203003, y=0.022735845297574997, z=-0.016159210354089737, visibility=0.0, presence=0.0), Landmark(x=0.01731652207672596, y=0.0019369935616850853, z=-0.005837230011820793, visibility=0.0, presence=0.0), Landmark(x=0.00418469775468111, y=-0.006673002615571022, z=-0.03359675034880638, visibility=0.0, presence=0.0), Landmark(x=-0.004463871009647846, y=0.018061187118291855, z=-0.03715647757053375, visibility=0.0, presence=0.0), Landmark(x=-0.003312978893518448, y=0.03866640478372574, z=-0.020958006381988525, visibility=0.0, presence=0.0), Landmark(x=0.027814939618110657, y=0.01806008070707321, z=-0.015201061964035034, visibility=0.0, presence=0.0), Landmark(x=0.022301536053419113, y=0.004201916977763176, z=-0.03300260752439499, visibility=0.0, presence=0.0), Landmark(x=0.011858094483613968, y=0.01575622707605362, z=-0.042610377073287964, visibility=0.0, presence=0.0), Landmark(x=0.010728622786700726, y=0.033912476152181625, z=-0.03593865782022476, visibility=0.0, presence=0.0)]])
 
   # Continuously capture images from the camera and run inference
   while cap.isOpened():
@@ -174,8 +181,7 @@ def run(model: str, num_hands: int,
 
     if recognition_result:
       # Draw landmarks and write the text for each hand.
-      for hand_index, hand_landmarks in enumerate(
-          recognition_result.hand_landmarks):
+      for hand_index, hand_landmarks in enumerate(recognition_result.hand_landmarks):
         # Calculate the bounding box of the hand
         x_min = min([landmark.x for landmark in hand_landmarks])
         y_min = min([landmark.y for landmark in hand_landmarks])
@@ -200,6 +206,11 @@ def run(model: str, num_hands: int,
           mp_hands.HAND_CONNECTIONS,
           mp_drawing_styles.get_default_hand_landmarks_style(),
           mp_drawing_styles.get_default_hand_connections_style())
+
+      for landmarks in recognition_result.hand_world_landmarks:
+        # print(len(LandmarksTo1DArray(landmarks)), LandmarksTo1DArray(landmarks))
+        print(LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks))])
+
 
       recognition_frame = current_frame
       recognition_result = None

@@ -1,4 +1,5 @@
 import os
+import sys
 from dataclasses import dataclass
 import math
 import copy
@@ -15,14 +16,29 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
+current_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Get the parent directory
+parent_dir = os.path.abspath(os.path.join(current_dir, os.pardir))
+
+# Add the parent directory to sys.path
+sys.path.append(parent_dir)
+
+# Now you can import the module from the parent folder
+from src.alphabet_recognizer import LABEL_MAP
+
+
 @dataclass
 class DataSample:
     label: str
     label_id: int
-    input: list[list[float]]
+    input: list[float]
 
 def landmarks_to_list(landmarks: list[Landmark]):
     return [[landmark.x, landmark.y, landmark.z] for landmark in landmarks]
+
+def to_1d_array(l: list[list[any]]):
+    return [item for sublist in l for item in sublist]
 
 def rot_3d_y(coords3d: list[float], angle: float):
     x, y, z = coords3d
@@ -54,35 +70,6 @@ path_from_script = os.path.dirname(os.path.abspath(__file__))
 mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
-
-hand_map = {
-    "A": 0,
-    "B": 1,
-    "C": 2,
-    "D": 3,
-    "E": 4,
-    "F": 5,
-    "G": 6,
-    "H": 7,
-    "I": 8,
-    "J": 9,
-    "K": 10,
-    "L": 11,
-    "M": 12,
-    "N": 13,
-    "O": 14,
-    "P": 15,
-    "Q": 16,
-    "R": 17,
-    "S": 18,
-    "T": 19,
-    "U": 20,
-    "V": 21,
-    "W": 22,
-    "X": 23,
-    "Y": 24,
-    "Z": 25,
-}
 
 dataset: list[DataSample] = []
 
@@ -142,13 +129,13 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
         for landmarks in recognition_result.hand_world_landmarks:
             # Add the original hand
             original = landmarks_to_list(landmarks)
-            dataset.append(DataSample(label=file[0], label_id=hand_map[file[0]], input=original))
+            dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(original)))
 
             # Add the mirrored hand
             original_mirror = copy.deepcopy(original)
             for i in range(len(original_mirror)):
                 original_mirror[i][0] = -original_mirror[i][0]
-            dataset.append(DataSample(label=file[0], label_id=hand_map[file[0]], input=original_mirror))
+            dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(original_mirror)))
 
             # Create variation of the original hand
             for origin in [original, original_mirror]:
@@ -158,7 +145,7 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                         original_random[i][0] += (random.random() - 0.5) * 0.001
                         original_random[i][1] += (random.random() - 0.5) * 0.001
                         original_random[i][2] += (random.random() - 0.5) * 0.001
-                    dataset.append(DataSample(label=file[0], label_id=hand_map[file[0]], input=original_random))
+                    dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(original_random)))
 
             # Add the rotated hands equivalent to the original and mirrored hands
             for j in range(SUB_ROTATION):
@@ -171,7 +158,7 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                         rotated[i] = rot_3d_y(rotated[i], ROTATION + rotx * ((ROTATION / SUB_ROTATION)))
                         rotated[i] = rot_3d_x(rotated[i], ROTATION + roty * ((ROTATION / SUB_ROTATION)))
                         rotated[i] = rot_3d_z(rotated[i], ROTATION + rotz * ((ROTATION / SUB_ROTATION)))
-                    dataset.append(DataSample(label=file[0], label_id=hand_map[file[0]], input=rotated))
+                    dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(rotated)))
 
                     # Create variation of the rotated hand
                     for _ in range(SUB_SAMPLE):
@@ -180,7 +167,7 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                             rotated_random[i][0] += (random.random() - 0.5) * 0.001
                             rotated_random[i][1] += (random.random() - 0.5) * 0.001
                             rotated_random[i][2] += (random.random() - 0.5) * 0.001
-                        dataset.append(DataSample(label=file[0], label_id=hand_map[file[0]], input=rotated_random))
+                        dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(rotated_random)))
 
 
 
