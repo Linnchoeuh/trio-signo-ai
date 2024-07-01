@@ -13,6 +13,9 @@ mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
+from src.alphabet_recognizer import *
+
+
 def get_alpahabet():
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
@@ -53,24 +56,8 @@ def get_alpahabet():
         print(recognition_result)
         # print(recognition_result)
 
-        # Label box parameters
-        label_text_color = (255, 255, 255)  # white
-        label_font_size = 1
-        label_thickness = 2
-
         current_frame = image
         for hand_index, hand_landmarks in enumerate(recognition_result.hand_landmarks):
-            # Calculate the bounding box of the hand
-            x_min = min([landmark.x for landmark in hand_landmarks])
-            y_min = min([landmark.y for landmark in hand_landmarks])
-            y_max = max([landmark.y for landmark in hand_landmarks])
-
-            # Convert normalized coordinates to pixel values
-            frame_height, frame_width = current_frame.shape[:2]
-            x_min_px = int(x_min * frame_width)
-            y_min_px = int(y_min * frame_height)
-            y_max_px = int(y_max * frame_height)
-
 
             # Draw hand landmarks on the frame
             hand_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
@@ -88,8 +75,14 @@ def get_alpahabet():
 
         recognition_frame = current_frame
 
-        if recognition_frame is not None:
-            cv2.imshow('gesture_recognition', recognition_frame)
-            cv2.waitKeyEx(1000)
-            cv2.destroyAllWindows()
-        return jsonify({'message': 'File successfully uploaded'}), 200
+        if len(recognition_result.hand_world_landmarks) < 1:
+            return jsonify({'message': None}), 200
+
+        alphabet_model = LSFAlphabetRecognizer()
+        alphabet_model.load_state_dict(torch.load('model.pth'))
+
+
+        # cv2.imshow('gesture_recognition', recognition_frame)
+        # cv2.waitKeyEx(1000)
+        # cv2.destroyAllWindows()
+        return jsonify({'message': LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(recognition_result.hand_world_landmarks[0]))]}), 200
