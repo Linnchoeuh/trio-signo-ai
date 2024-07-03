@@ -84,7 +84,7 @@ class LSFAlphabetRecognizer(nn.Module):
         super(LSFAlphabetRecognizer, self).__init__()
         self.fc1 = nn.Linear(63, 128)
         self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, 26)
+        self.fc3 = nn.Linear(64, 27)
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
