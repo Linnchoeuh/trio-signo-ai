@@ -11,25 +11,13 @@ Every request and response are in JSON format. No other format is supported yet.
 
 # Header and Authentication
 
-Except for [register](endpoints/post/register.md) and [log in](endpoints/post/login.md)
-endpoints that are used to aquire a **token**, the field `Authorization` is expected
-**in the header of any api call** in the following format:
-```json
-{
-    "Authorization": "Bearer {your_token}",
-}
-```
-
-## Response
-
-If the token is missing or invalid, the response will be a 401 with the following message:
-```
-Unauthorized
-```
+The header and authentication system has not been defined yet, 
+hence there's no need to do anything to access to any endpoint of this API.
 
 # API Calls
 
+## GET
+- [Ping](endpoints/get/ping.md)
+
 ## POST
-- [Get Alphabet](endpoints/post/get_alphabet.md)
-- [Log in](endpoints/post/login.md)
-- [Create AREA](endpoints/post/create_area.md)
+- [Get Alphabet](endpoints/post/get-alphabet.md)
