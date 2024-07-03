@@ -8,12 +8,21 @@ Gets an image and return the letter it represent in LSF (French Sign Language) o
 
 ## Request
 
+### Header
+You must set in your request headers the following values:
+
+```json
+{
+    "Content-Type": "multipart/form-data"
+}
+```
+
 ### Body
 The request body should be in the **form-data** format and include the following parameters:
 
-| Key  | Type   | Description                     |
-|------|--------|---------------------------------|
-| file | File   | The image file to be processed. |
+| Key  | Type   | Description                                              |
+|------|--------|----------------------------------------------------------|
+| file | File   | The image file to be processed. (in .jpg or .png format) |
 
 ## Response
 ### 200
@@ -31,3 +40,10 @@ The request body should be in the **form-data** format and include the following
 ```
 ### 401
 > Response defined in [index.md](../../index.md)
+
+## Example
+```sh
+curl -X POST "{root_url}/get-alphabet" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@B.jpg"
+```
