@@ -1,6 +1,6 @@
 [back](../../index.md)
 # POST - Get Alphabet
-**URL:** `{root_url}/callback`
+**URL:** `{root_url}/get-alphabet`
 
 ## Description
 
