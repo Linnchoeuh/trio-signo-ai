@@ -20,4 +20,4 @@ hence there's no need to do anything to access to any endpoint of this API.
 - [Ping](endpoints/get/ping.md)
 
 ## POST
-- [Get Alphabet](endpoints/post/get_alphabet.md)
+- [Get Alphabet](endpoints/post/get-alphabet.md)
