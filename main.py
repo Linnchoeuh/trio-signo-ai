@@ -2,6 +2,7 @@ import argparse
 import logging
 
 from flask import Flask
+from flask_cors import CORS
 from waitress import serve
 
 from src.logger import setup_logger
@@ -61,7 +62,7 @@ def main():
 
     # Setup Flask app
     app = Flask(__name__)
-
+    CORS(app)
 
 
 
