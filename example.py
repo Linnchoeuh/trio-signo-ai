@@ -38,7 +38,7 @@ mp_drawing_styles = mp.solutions.drawing_styles
 
 # Global variables to calculate FPS
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-TARGET_FOLDER = "./datasets/source_images/lenny"
+TARGET_FOLDER = "./datasets/source_images/cam"
 
 
 def run(model: str, num_hands: int,
