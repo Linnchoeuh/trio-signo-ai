@@ -129,21 +129,21 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                 mp_drawing_styles.get_default_hand_connections_style())
 
         if len(recognition_result.hand_world_landmarks) > 0:
-            sample = DataSample.from_handlandmarker(recognition_result, label=file[0], label_id=LABEL_MAP.label[file[0]])
+            label = file[0].lower()
+            sample = DataSample.from_handlandmarker(recognition_result, label=label, label_id=LABEL_MAP.label[file[0]])
             print(sample)
-            label = file[0]
             if label == "0":
                 label = "_null"
             target_folder = f"{path_from_script}/tmp/{label}"
             os.makedirs(target_folder, exist_ok=True)
-    
+
             i = 0
             file_name = f"{label}_{i}.json"
             files = os.listdir(target_folder)
             while file_name in files:
                 i += 1
                 file_name = f"{label}_{i}.json"
-    
+
             print(f"Writing to {file_name}")
             with open(f"{target_folder}/{file_name}", "w", encoding='utf-8') as f:
                 f.write(json.dumps(sample.to_json(), indent=4, ensure_ascii=False))
