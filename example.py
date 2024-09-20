@@ -191,8 +191,11 @@ def run(model: str, num_hands: int,
           mp_drawing_styles.get_default_hand_connections_style())
 
       for landmarks in recognition_result.hand_world_landmarks:
-        letter = LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks))]
-        if letter == '0':
+        try:
+          letter = LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks)) + 1]
+          if letter == '0':
+            letter = 'None'
+        except:
           letter = 'None'
         print(letter)
 
