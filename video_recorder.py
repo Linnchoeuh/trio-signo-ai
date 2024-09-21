@@ -23,6 +23,7 @@ frame_width = int(record.get(3))
 frame_height = int(record.get(4))
 
 fourcc = cv2.VideoWriter_fourcc(*'XVID')  # To save in .avi
+is_recording = False
 output_file = None
 out = None
 
@@ -31,7 +32,6 @@ Space: Record
 A: Screenshot
 Esc: Quit"""
 
-is_recording = False
 
 def create_instruction_image():
     instruction_image = np.zeros((frame_height, 300, 3), dtype=np.uint8)
