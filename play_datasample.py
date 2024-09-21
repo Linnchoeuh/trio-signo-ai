@@ -4,6 +4,7 @@ import pygame
 from src.datasample import *
 from src.rot_3d import *
 import copy
+import time
 
 
 
@@ -21,8 +22,8 @@ with open(sys.argv[1], 'r', encoding="utf-8") as f:
     sample: DataSample = DataSample.from_json(json.load(f))
 
 # sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
-
-
+sample.reframe(240)
+print(len(sample.gestures))
 
 
 
@@ -48,6 +49,8 @@ def from_coord_list_xyz(coord_list_xyz):
 frame = 0
 rot_x = 0
 rot_y = 0
+play_animation = False
+pause_animation = time.time()
 
 while run:
     for event in pygame.event.get():
@@ -56,6 +59,12 @@ while run:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_ESCAPE:
                 run = False
+            if event.key == pygame.K_s:
+                frame -= 1
+            if event.key == pygame.K_z:
+                frame += 1
+            if event.key == pygame.K_SPACE:
+                play_animation = not play_animation
 
     if pygame.key.get_pressed()[pygame.K_LEFT]:
         rot_y -= 0.2 * BASE_FPS / FPS
@@ -66,12 +75,11 @@ while run:
     if pygame.key.get_pressed()[pygame.K_DOWN]:
         rot_x += 0.2 * BASE_FPS / FPS
 
-
     win.fill((0, 0, 0))
 
     sample_cpy: DataSample = copy.deepcopy(sample)
     # sample_cpy.randomize_points()
-    # sample_cpy.deform_hand(1.5, 1.5, 1)
+    # sample_cpy.deform_hand(1.5, 1, 1)
 
     hand_frame: GestureData = copy.deepcopy(sample_cpy.gestures[frame % len(sample_cpy.gestures)])
     for point_name in hand_frame.__dict__.keys():
@@ -79,7 +87,7 @@ while run:
         field_value = rot_3d_x(field_value, rot_x)
         field_value = rot_3d_y(field_value, rot_y)
         setattr(hand_frame, point_name, field_value)
-    line_size = scale // 3000
+    line_size = scale // 2000
 
 
     pygame.draw.line(win, (128, 128, 128), from_coord_list_xyz(hand_frame.wrist), from_coord_list_xyz(hand_frame.index_mcp), line_size)
@@ -112,8 +120,18 @@ while run:
 
 
     for pos in hand_frame.__dict__.values():
-        pygame.draw.circle(win, (255, 0, 0), from_coord_list_xyz(pos), pow(((-pos[2] + 1) / 2) * 2.5, 10))
+        dist = pow(((-pos[2] + 1) / 2) * 2.5, 10) * 0.5
+        # print(dist)
+        pygame.draw.circle(win, (min(255, int(30 * dist)), 0, 0), from_coord_list_xyz(pos), dist)
 
     pygame.display.update()
     clock.tick(FPS)
-    frame += 1
+    if play_animation:
+        if pause_animation == 0 and frame >= len(sample_cpy.gestures) - 1:
+            pause_animation = time.time()
+        elif time.time() - pause_animation > 2:
+            if frame >= len(sample_cpy.gestures):
+                frame = 0
+                pause_animation = 0
+            else:
+                frame += 1
