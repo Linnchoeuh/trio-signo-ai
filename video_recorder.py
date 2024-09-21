@@ -5,6 +5,7 @@ from datetime import datetime
 
 ESC = 27
 SPACE = 32
+fps = 30
 
 save_dir = 'datasets/source_videos'
 if not os.path.exists(save_dir):
@@ -14,9 +15,8 @@ record = cv2.VideoCapture(0)
 
 frame_width = int(record.get(3))
 frame_height = int(record.get(4))
-fps = 15
 
-fourcc = cv2.VideoWriter_fourcc(*'XVID') # To save in .avi
+fourcc = cv2.VideoWriter_fourcc(*'XVID')  # To save in .avi
 output_file = None
 out = None
 
@@ -36,8 +36,9 @@ def create_instruction_image():
 
     return instruction_image
 
-cv2.namedWindow("Video recorder", cv2.WINDOW_NORMAL)
-cv2.resizeWindow("Video recorder", frame_width + 300, frame_height)
+# Supprimer la création et le redimensionnement de la fenêtre :
+# cv2.namedWindow("Video recorder", cv2.WINDOW_NORMAL)
+# cv2.resizeWindow("Video recorder", frame_width + 300, frame_height)
 
 while True:
     ret, frame = record.read()
@@ -53,7 +54,6 @@ while True:
     combined_frame = np.hstack((frame, instruction_image))
 
     cv2.imshow("Video recorder", combined_frame)
-
 
     # Check for key press
     key = cv2.waitKey(1) & 0xFF
