@@ -5,11 +5,17 @@ from datetime import datetime
 
 ESC = 27
 SPACE = 32
+A_KEY = 97
 fps = 30
 
-save_dir = 'datasets/source_videos'
-if not os.path.exists(save_dir):
-    sys.exit(f"Folder {save_dir} doesnt exist.")
+save_dir_videos = 'datasets/source_videos'
+save_dir_screenshots = 'datasets/source_images/screenshots'
+
+if not os.path.exists(save_dir_videos):
+    os.makedirs(save_dir_videos)
+
+if not os.path.exists(save_dir_screenshots):
+    os.makedirs(save_dir_screenshots)
 
 record = cv2.VideoCapture(0)
 
@@ -21,7 +27,8 @@ output_file = None
 out = None
 
 instructions = """Instructions:
-Space: Start/Stop recording
+Space: Record
+A: Screenshot
 Esc: Quit"""
 
 is_recording = False
@@ -35,10 +42,6 @@ def create_instruction_image():
         cv2.putText(instruction_image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
 
     return instruction_image
-
-# Supprimer la création et le redimensionnement de la fenêtre :
-# cv2.namedWindow("Video recorder", cv2.WINDOW_NORMAL)
-# cv2.resizeWindow("Video recorder", frame_width + 300, frame_height)
 
 while True:
     ret, frame = record.read()
@@ -55,12 +58,11 @@ while True:
 
     cv2.imshow("Video recorder", combined_frame)
 
-    # Check for key press
     key = cv2.waitKey(1) & 0xFF
+    current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
     if key == SPACE:
         if not is_recording:
-            current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            output_file = os.path.join(save_dir, f'output_video_{current_time}.avi')
+            output_file = os.path.join(save_dir_videos, f'output_video_{current_time}.avi')
             out = cv2.VideoWriter(output_file, fourcc, fps, (frame_width, frame_height))
             is_recording = True
             print("Starting to record...")
@@ -68,6 +70,10 @@ while True:
             is_recording = False
             out.release()
             print(f"Recording saved in {output_file}.")
+    elif key == A_KEY:
+        output_file = os.path.join(save_dir_screenshots, f'screenshot_{current_time}.png')
+        cv2.imwrite(output_file, frame)
+        print(f"Screenshot saved in {output_file}.")
 
     elif key == ESC:
         if not is_recording:
