@@ -2,10 +2,8 @@ import cv2
 import numpy as np
 from moviepy.editor import VideoFileClip
 import tkinter as tk
-from tkinter import filedialog
-from tkinter import messagebox
-from tkinter import ttk
-import os
+from tkinter import filedialog, messagebox
+from PIL import Image, ImageTk
 
 class VideoTrimmer:
     def __init__(self, root):
@@ -15,22 +13,22 @@ class VideoTrimmer:
         self.video_clip = None
         self.current_frame = None
         self.playing = False
-        
+
+        # Interface graphique
         self.canvas = tk.Canvas(root, width=600, height=400)
         self.canvas.pack()
 
-        # Load and save buttons
-        self.load_button = tk.Button(root, text="Load Video", command=self.load_video)
+        # Boutons
+        self.load_button = tk.Button(root, text="Charger Vidéo", command=self.load_video)
         self.load_button.pack()
-        self.trim_button = tk.Button(root, text="Save video", command=self.trim_video, state=tk.DISABLED)
+        self.trim_button = tk.Button(root, text="Sauvegarder la Vidéo", command=self.trim_video, state=tk.DISABLED)
         self.trim_button.pack()
 
-        # Sliders to crop time
-        self.start_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, label="Start", length=500)
+        # Curseurs de découpage avec affichage en secondes
+        self.start_slider = tk.Scale(root, from_=0, to=1, orient=tk.HORIZONTAL, label="Début : 0.00 sec", length=500, resolution=0.01, showvalue=0, command=self.update_start_label)
         self.start_slider.pack()
-        self.end_slider = tk.Scale(root, from_=0, to=100, orient=tk.HORIZONTAL, label="End", length=500)
+        self.end_slider = tk.Scale(root, from_=0, to=1, orient=tk.HORIZONTAL, label="Fin : 0.00 sec", length=500, resolution=0.01, showvalue=0, command=self.update_end_label)
         self.end_slider.pack()
-
 
     def load_video(self):
         self.video_path = filedialog.askopenfilename(initialdir="datasets/source_videos", filetypes=[("Video Files", "*.avi *.mp4")])
@@ -41,47 +39,47 @@ class VideoTrimmer:
             self.play_video()
 
     def update_sliders(self):
+        # Mettre à jour les curseurs en fonction de la durée de la vidéo, sans multiplier par 100
         duration = self.video_clip.duration
         self.start_slider.config(to=duration)
         self.end_slider.config(to=duration)
         self.end_slider.set(duration)
 
+    def update_start_label(self, value):
+        # Mettre à jour dynamiquement l'étiquette du curseur de début
+        self.start_slider.config(label=f"Début : {float(value):.2f} sec")
+
+    def update_end_label(self, value):
+        # Mettre à jour dynamiquement l'étiquette du curseur de fin
+        self.end_slider.config(label=f"Fin : {float(value):.2f} sec")
+
     def play_video(self):
         self.playing = True
         cap = cv2.VideoCapture(self.video_path)
 
-        while cap.isOpened() and self.playing:
-            ret, frame = cap.read()
-            if ret:
-                frame = cv2.resize(frame, (600, 400))
-                self.current_frame = frame
+        def update_frame():
+            if cap.isOpened() and self.playing:
+                ret, frame = cap.read()
+                if ret:
+                    frame = cv2.resize(frame, (600, 400))
+                    img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    img = Image.fromarray(img)
+                    imgtk = ImageTk.PhotoImage(image=img)
+                    self.canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
+                    self.canvas.image = imgtk
+                    self.root.after(33, update_frame)  # Appel périodique toutes les 33 ms pour lecture à 30 fps
+                else:
+                    cap.release()
 
-                img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                img = np.array(img)
-                img = np.flip(img, axis=2)
-                img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-                self.show_frame(img)
-                cv2.waitKey(33)
-            else:
-                break
-        cap.release()
-
-    def show_frame(self, frame):
-        img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img = np.array(img)
-        img = np.flip(img, axis=2)
-        img = cv2.cvtColor(img, cv2.COLOR_RGB2BGR)
-
-        self.photo = tk.PhotoImage(master=self.canvas, width=600, height=400)
-        self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        update_frame()
 
     def trim_video(self):
-        start_time = self.start_slider.get()
-        end_time = self.end_slider.get()
+        # Récupérer les valeurs des curseurs en secondes (pas besoin de conversion maintenant)
+        start_time = float(self.start_slider.get())
+        end_time = float(self.end_slider.get())
 
         if start_time >= end_time:
-            messagebox.showerror("Error", "Wrong trim.")
+            messagebox.showerror("Erreur", "Le découpage est incorrect.")
             return
 
         trimmed_clip = self.video_clip.subclip(start_time, end_time)
@@ -90,7 +88,7 @@ class VideoTrimmer:
             trimmed_clip.write_videofile(save_path, codec="mpeg4")
         else:
             trimmed_clip.write_videofile(save_path, codec="libx264")
-        messagebox.showinfo("Success", "Video saved successfully.")
+        messagebox.showinfo("Succès", "La vidéo a été sauvegardée avec succès.")
 
 if __name__ == "__main__":
     root = tk.Tk()
