@@ -27,7 +27,7 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
-
+from src.datasample import *
 from src.alphabet_recognizer import *
 
 
@@ -60,6 +60,7 @@ def run(model: str, num_hands: int,
       width: The width of the frame captured from the camera.
       height: The height of the frame captured from the camera.
   """
+  count = 0
 
   # Start capturing video input from the camera
   cap = cv2.VideoCapture(camera_id)
@@ -205,7 +206,7 @@ def run(model: str, num_hands: int,
 
 
       recognition_frame = current_frame
-      recognition_result = None
+      # recognition_result = None
 
     if recognition_frame is not None:
         cv2.imshow('gesture_recognition', recognition_frame)
@@ -216,17 +217,21 @@ def run(model: str, num_hands: int,
     if key == 27:
       break
     elif key != -1 and chr(key) in "abcdefghijklmnopqrstuvwxyz0":
-      dir = f"{SCRIPT_DIR}/{TARGET_FOLDER}"
       # dir = "."
-      files = os.listdir(dir)
-      file = f"{chr(key).upper()}.png"
-      i = 0
-      while file in files:
-        i += 1
-        file = f"{chr(key).upper()}{i}.png"
-      path = f"{dir}/{file}"
-      print(f"Key pressed: {key} (ASCII: {chr(key)}) saving to {path}")
-      cv2.imwrite(path, img_cpy)
+      # dir = f"{SCRIPT_DIR}/{TARGET_FOLDER}"
+      # files = os.listdir(dir)
+      # file = f"{chr(key).upper()}.png"
+      # i = 0
+      # while file in files:
+      #   i += 1
+      #   file = f"{chr(key).upper()}{i}.png"
+      # path = f"{dir}/{file}"
+      # print(f"Key pressed: {key} (ASCII: {chr(key)}) saving to {path}")
+      # cv2.imwrite(path, img_cpy)
+      with open(f"{chr(key).lower()}_{count}.json", 'w') as f:
+        sample = DataSample.from_handlandmarker(recognition_result, label=chr(key).lower(), label_id=0)
+        f.write(json.dumps(sample.to_json(), indent=4, ensure_ascii=False))
+      count += 1
 
 
   recognizer.close()

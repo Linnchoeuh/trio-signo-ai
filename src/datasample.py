@@ -3,6 +3,8 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.landmark import *
 from src.rot_3d import *
 import random
+import math
+
 
 @dataclass
 class GestureData:
@@ -171,6 +173,58 @@ class DataSample:
                 field_value[1] *= y
                 field_value[2] *= z
                 setattr(self.gestures[i], field.name, field_value)
+
+    def reframe(self, target_frame: int):
+        """Change the number of frame to execute the full gesture sequence
+        Be careful, if frame are reducedn reincresing the frame will not restore the original gesture
+
+        Args:
+            frame (int): Target frame number
+        """
+        def lerp(a, b, t):
+            return [a[i] + (b[i] - a[i]) * t for i in range(len(a))]
+
+        new_gestures: list[GestureData] = []
+
+        if target_frame <= 1:
+            raise ValueError("Target frame must be greater than 1")
+
+        for i in range(target_frame):
+            progression = i / (target_frame - 1)
+            frame_scaled_value = min(progression * (len(self.gestures) - 1), len(self.gestures) - 1)
+            print(i, frame_scaled_value, len(self.gestures))
+            start_frame = math.floor(frame_scaled_value)
+            end_frame = math.ceil(frame_scaled_value)
+            interpolation_coef = frame_scaled_value - start_frame
+
+
+            new_gestures.append(GestureData(
+                wrist=lerp(self.gestures[start_frame].wrist, self.gestures[end_frame].wrist, interpolation_coef),
+                thumb_cmc=lerp(self.gestures[start_frame].thumb_cmc, self.gestures[end_frame].thumb_cmc, interpolation_coef),
+                thumb_mcp=lerp(self.gestures[start_frame].thumb_mcp, self.gestures[end_frame].thumb_mcp, interpolation_coef),
+                thumb_ip=lerp(self.gestures[start_frame].thumb_ip, self.gestures[end_frame].thumb_ip, interpolation_coef),
+                thumb_tip=lerp(self.gestures[start_frame].thumb_tip, self.gestures[end_frame].thumb_tip, interpolation_coef),
+                index_mcp=lerp(self.gestures[start_frame].index_mcp, self.gestures[end_frame].index_mcp, interpolation_coef),
+                index_pip=lerp(self.gestures[start_frame].index_pip, self.gestures[end_frame].index_pip, interpolation_coef),
+                index_dip=lerp(self.gestures[start_frame].index_dip, self.gestures[end_frame].index_dip, interpolation_coef),
+                index_tip=lerp(self.gestures[start_frame].index_tip, self.gestures[end_frame].index_tip, interpolation_coef),
+                middle_mcp=lerp(self.gestures[start_frame].middle_mcp, self.gestures[end_frame].middle_mcp, interpolation_coef),
+                middle_pip=lerp(self.gestures[start_frame].middle_pip, self.gestures[end_frame].middle_pip, interpolation_coef),
+                middle_dip=lerp(self.gestures[start_frame].middle_dip, self.gestures[end_frame].middle_dip, interpolation_coef),
+                middle_tip=lerp(self.gestures[start_frame].middle_tip, self.gestures[end_frame].middle_tip, interpolation_coef),
+                ring_mcp=lerp(self.gestures[start_frame].ring_mcp, self.gestures[end_frame].ring_mcp, interpolation_coef),
+                ring_pip=lerp(self.gestures[start_frame].ring_pip, self.gestures[end_frame].ring_pip, interpolation_coef),
+                ring_dip=lerp(self.gestures[start_frame].ring_dip, self.gestures[end_frame].ring_dip, interpolation_coef),
+                ring_tip=lerp(self.gestures[start_frame].ring_tip, self.gestures[end_frame].ring_tip, interpolation_coef),
+                pinky_mcp=lerp(self.gestures[start_frame].pinky_mcp, self.gestures[end_frame].pinky_mcp, interpolation_coef),
+                pinky_pip=lerp(self.gestures[start_frame].pinky_pip, self.gestures[end_frame].pinky_pip, interpolation_coef),
+                pinky_dip=lerp(self.gestures[start_frame].pinky_dip, self.gestures[end_frame].pinky_dip, interpolation_coef),
+                pinky_tip=lerp(self.gestures[start_frame].pinky_tip, self.gestures[end_frame].pinky_tip, interpolation_coef),
+            ))
+
+        self.gestures = new_gestures
+        # print(self.gestures)
+
 
 @dataclass
 class DatasetObjectInfo:
