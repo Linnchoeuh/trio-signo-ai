@@ -1,6 +1,8 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.landmark import *
+from src.rot_3d import *
+import random
 
 @dataclass
 class GestureData:
@@ -52,17 +54,52 @@ class GestureData:
             pinky_tip=[landmarks[20].x, landmarks[20].y, landmarks[20].z]
         )
 
+    @classmethod
+    def from_list(cls, raw_data: list[float]):
+        return cls(
+            wrist=raw_data[0:3],
+            thumb_cmc=raw_data[3:6],
+            thumb_mcp=raw_data[6:9],
+            thumb_ip=raw_data[9:12],
+            thumb_tip=raw_data[12:15],
+            index_mcp=raw_data[15:18],
+            index_pip=raw_data[18:21],
+            index_dip=raw_data[21:24],
+            index_tip=raw_data[24:27],
+            middle_mcp=raw_data[27:30],
+            middle_pip=raw_data[30:33],
+            middle_dip=raw_data[33:36],
+            middle_tip=raw_data[36:39],
+            ring_mcp=raw_data[39:42],
+            ring_pip=raw_data[42:45],
+            ring_dip=raw_data[45:48],
+            ring_tip=raw_data[48:51],
+            pinky_mcp=raw_data[51:54],
+            pinky_pip=raw_data[54:57],
+            pinky_dip=raw_data[57:60],
+            pinky_tip=raw_data[60:63]
+        )
+
+    def to_list(self):
+        raw_coords = []
+        for attr in self.__dict__.values():
+            print(attr)
+            raw_coords += attr
+        return raw_coords
+
 @dataclass
 class DataSample:
     label: str
-    label_id: int
     gestures: list[GestureData]
+    label_id: int | None = None
 
     @classmethod
-    def from_json(cls, json_data):
+    def from_json(cls, json_data, label_id: int = None):
+        if label_id is None:
+            label_id = json_data['label_id']
         return cls(
             label=json_data['label'],
-            label_id=json_data['label_id'],
+            label_id=label_id,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
 
@@ -79,4 +116,74 @@ class DataSample:
             'label': self.label,
             'label_id': self.label_id,
             'gestures': [gesture.__dict__ for gesture in self.gestures]
+        }
+
+    def to_training_data(self, label_id: int) -> tuple[int, list[float]]:
+        raw_data = []
+        for gesture in self.gestures:
+            raw_data += gesture.to_list()
+        return (label_id, raw_data)
+
+    def mirror_sample(self, mirror_x: bool = True, mirror_y: bool = False, mirror_z: bool = False):
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                if mirror_x:
+                    field_value[0] = -field_value[0]
+                if mirror_y:
+                    field_value[1] = -field_value[1]
+                if mirror_z:
+                    field_value[2] = -field_value[2]
+                setattr(self.gestures[i], field.name, field_value)
+
+    def rotate_sample(self, angle_x: float = 0, angle_y: float = 0, angle_z: float = 0):
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                field_value = rot_3d_x(field_value, angle_x)
+                field_value = rot_3d_y(field_value, angle_y)
+                field_value = rot_3d_z(field_value, angle_z)
+                setattr(self.gestures[i], field.name, field_value)
+
+    def randomize_points(self, factor: float = 0.005):
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                field_value[0] += (random.random() - 0.5) * factor
+                field_value[1] += (random.random() - 0.5) * factor
+                field_value[2] += (random.random() - 0.5) * factor
+                setattr(self.gestures[i], field.name, field_value)
+
+    def translate_hand(self, x: float = 0, y: float = 0, z: float = 0):
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                field_value[0] += x
+                field_value[1] += y
+                field_value[2] += z
+                setattr(self.gestures[i], field.name, field_value)
+
+    def deform_hand(self, x: float = 1, y: float = 1, z: float = 1):
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                field_value[0] *= x
+                field_value[1] *= y
+                field_value[2] *= z
+                setattr(self.gestures[i], field.name, field_value)
+
+@dataclass
+class DatasetObjectInfo:
+    labels: list[str]
+    label_map: dict[str, int]
+
+@dataclass
+class DatasetObject:
+    info: DatasetObjectInfo
+    samples: list[DataSample]
+
+    def to_json(self):
+        return {
+            'info': self.info.__dict__,
+            'samples': [sample.to_json() for sample in self.samples]
         }
