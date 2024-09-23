@@ -28,7 +28,7 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.datasample import *
-from src.alphabet_recognizer import *
+from src.model_class.alphabet_recognizer_v1 import *
 
 
 mp_hands = mp.solutions.hands
@@ -61,15 +61,16 @@ def run(model: str, num_hands: int,
       height: The height of the frame captured from the camera.
   """
   count = 0
+  alphabet_model = LSFAlphabetRecognizerV1(27)
+  # alphabet_model.load_state_dict(torch.load('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth'))
+  alphabet_model.loadModel('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth')
 
   # Start capturing video input from the camera
   cap = cv2.VideoCapture(camera_id)
   cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
   cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-  cap.set(cv2.CAP_PROP_FPS, 10)
+  cap.set(cv2.CAP_PROP_FPS, 60)
 
-  alphabet_model = LSFAlphabetRecognizer()
-  alphabet_model.load_state_dict(torch.load('model.pth'))
 
 
   recognition_frame = None
@@ -246,7 +247,7 @@ def main():
       '--model',
       help='Name of gesture recognition model.',
       required=False,
-      default='hand_landmarker.task')
+      default='models/hand_tracking/google/hand_landmarker.task')
   parser.add_argument(
       '--numHands',
       help='Max number of hands that can be detected by the recognizer.',

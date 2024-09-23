@@ -9,7 +9,7 @@ import time
 
 
 BASE_FPS = 15 # Do not change this value
-FPS = 60
+FPS = 15
 WIDTH, HEIGHT = 500, 500
 scale = 10000
 object_position = [WIDTH//2, HEIGHT//2]
@@ -22,9 +22,9 @@ with open(sys.argv[1], 'r', encoding="utf-8") as f:
     sample: DataSample = DataSample.from_json(json.load(f))
 
 # sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
-sample.reframe(240)
+# sample.reframe(240)
+# sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
 print(len(sample.gestures))
-
 
 
 p = pygame.init()
@@ -49,10 +49,13 @@ def from_coord_list_xyz(coord_list_xyz):
 frame = 0
 rot_x = 0
 rot_y = 0
+round_decimal = 3
 play_animation = False
-pause_animation = time.time()
+pause_animation = 0
 
 while run:
+    frame %= len(sample.gestures)
+    print(f"\r\033[Kframe: {frame + 1}/{len(sample.gestures)} round_decimal: {round_decimal}", end="")
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
@@ -65,6 +68,13 @@ while run:
                 frame += 1
             if event.key == pygame.K_SPACE:
                 play_animation = not play_animation
+            if event.key == pygame.K_r:
+                rot_x = 0
+                rot_y = 0
+            if event.key == pygame.K_1 or event.key == pygame.K_KP_1:
+                round_decimal -= 1
+            if event.key == pygame.K_2 or event.key == pygame.K_KP_2:
+                round_decimal += 1
 
     if pygame.key.get_pressed()[pygame.K_LEFT]:
         rot_y -= 0.2 * BASE_FPS / FPS
@@ -78,6 +88,8 @@ while run:
     win.fill((0, 0, 0))
 
     sample_cpy: DataSample = copy.deepcopy(sample)
+
+    sample_cpy.round_gesture_coordinates(round_decimal)
     # sample_cpy.randomize_points()
     # sample_cpy.deform_hand(1.5, 1, 1)
 
@@ -124,14 +136,11 @@ while run:
         # print(dist)
         pygame.draw.circle(win, (min(255, int(30 * dist)), 0, 0), from_coord_list_xyz(pos), dist)
 
-    pygame.display.update()
     clock.tick(FPS)
     if play_animation:
         if pause_animation == 0 and frame >= len(sample_cpy.gestures) - 1:
             pause_animation = time.time()
         elif time.time() - pause_animation > 2:
-            if frame >= len(sample_cpy.gestures):
-                frame = 0
-                pause_animation = 0
-            else:
-                frame += 1
+            pause_animation = 0
+            frame += 1
+    pygame.display.update()
