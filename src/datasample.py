@@ -4,6 +4,7 @@ from mediapipe.tasks.python.components.containers.landmark import *
 from src.rot_3d import *
 import random
 import math
+import json
 
 
 @dataclass
@@ -85,7 +86,7 @@ class GestureData:
     def to_list(self):
         raw_coords = []
         for attr in self.__dict__.values():
-            print(attr)
+            # print(attr)
             raw_coords += attr
         return raw_coords
 
@@ -120,13 +121,14 @@ class DataSample:
             'gestures': [gesture.__dict__ for gesture in self.gestures]
         }
 
-    def to_training_data(self, label_id: int) -> tuple[int, list[float]]:
+    def samples_to_1d_array(self) -> list[float]:
         raw_data = []
         for gesture in self.gestures:
-            raw_data += gesture.to_list()
-        return (label_id, raw_data)
+            # raw_data.append([1] + gesture.to_list())
+            raw_data += [1] + gesture.to_list()
+        return raw_data
 
-    def mirror_sample(self, mirror_x: bool = True, mirror_y: bool = False, mirror_z: bool = False):
+    def mirror_sample(self, mirror_x: bool = True, mirror_y: bool = False, mirror_z: bool = False) -> 'DataSample':
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
@@ -137,8 +139,9 @@ class DataSample:
                 if mirror_z:
                     field_value[2] = -field_value[2]
                 setattr(self.gestures[i], field.name, field_value)
+        return self
 
-    def rotate_sample(self, angle_x: float = 0, angle_y: float = 0, angle_z: float = 0):
+    def rotate_sample(self, angle_x: float = 0, angle_y: float = 0, angle_z: float = 0) -> 'DataSample':
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
@@ -146,8 +149,9 @@ class DataSample:
                 field_value = rot_3d_y(field_value, angle_y)
                 field_value = rot_3d_z(field_value, angle_z)
                 setattr(self.gestures[i], field.name, field_value)
+        return self
 
-    def randomize_points(self, factor: float = 0.005):
+    def randomize_points(self, factor: float = 0.005) -> 'DataSample':
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
@@ -155,8 +159,9 @@ class DataSample:
                 field_value[1] += (random.random() - 0.5) * factor
                 field_value[2] += (random.random() - 0.5) * factor
                 setattr(self.gestures[i], field.name, field_value)
+        return self
 
-    def translate_hand(self, x: float = 0, y: float = 0, z: float = 0):
+    def translate_hand(self, x: float = 0, y: float = 0, z: float = 0) -> 'DataSample':
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
@@ -164,8 +169,9 @@ class DataSample:
                 field_value[1] += y
                 field_value[2] += z
                 setattr(self.gestures[i], field.name, field_value)
+        return self
 
-    def deform_hand(self, x: float = 1, y: float = 1, z: float = 1):
+    def deform_hand(self, x: float = 1, y: float = 1, z: float = 1) -> 'DataSample':
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
@@ -173,8 +179,9 @@ class DataSample:
                 field_value[1] *= y
                 field_value[2] *= z
                 setattr(self.gestures[i], field.name, field_value)
+        return self
 
-    def reframe(self, target_frame: int):
+    def reframe(self, target_frame: int) -> 'DataSample':
         """Change the number of frame to execute the full gesture sequence
         Be careful, if frame are reducedn reincresing the frame will not restore the original gesture
 
@@ -192,7 +199,7 @@ class DataSample:
         for i in range(target_frame):
             progression = i / (target_frame - 1)
             frame_scaled_value = min(progression * (len(self.gestures) - 1), len(self.gestures) - 1)
-            print(i, frame_scaled_value, len(self.gestures))
+            # print(i, frame_scaled_value, len(self.gestures))
             start_frame = math.floor(frame_scaled_value)
             end_frame = math.ceil(frame_scaled_value)
             interpolation_coef = frame_scaled_value - start_frame
@@ -224,20 +231,92 @@ class DataSample:
 
         self.gestures = new_gestures
         # print(self.gestures)
+        return self
+
+    def round_gesture_coordinates(self, decimal: int = 3) -> 'DataSample':
+        for i in range(len(self.gestures)):
+            for field in fields(self.gestures[i]):
+                field_value: list[float] = getattr(self.gestures[i], field.name)
+                field_value = [round(coord, decimal) for coord in field_value]
+                setattr(self.gestures[i], field.name, field_value)
+        return self
 
 
 @dataclass
-class DatasetObjectInfo:
+class TrainDataInfo:
     labels: list[str]
     label_map: dict[str, int]
 
+    def __init__(self, labels: list[str], label_map: dict[str, int] = None):
+        self.labels = labels
+
+        if label_map is None:
+            self.label_map = {label: i for i, label in enumerate(labels)}
+        else:
+            for label in labels:
+                if label not in label_map:
+                    raise ValueError(f"Label {label} not found in label_map")
+
+    @classmethod
+    def from_dict(cls, data: dict):
+        return cls(
+            labels=data['labels'],
+            label_map=data['label_map']
+        )
+
 @dataclass
-class DatasetObject:
-    info: DatasetObjectInfo
-    samples: list[DataSample]
+class TrainData:
+    info: TrainDataInfo
+    samples: list[list[list[float]]]
+
+    def __init__(self, info: TrainDataInfo, samples: list[list[list[float]]] = None):
+        self.info = info
+
+        if samples is not None:
+            self.samples = samples
+        else:
+            self.samples = []
+            while len(self.samples) < len(info.labels):
+                self.samples.append([])
+
+    @classmethod
+    def from_json(cls, json_data):
+        return cls(
+            info=TrainDataInfo.from_dict(json_data['info']),
+            samples=json_data['samples']
+        )
+
+    @classmethod
+    def from_json_file(cls, file_path: str):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_json(data)
 
     def to_json(self):
         return {
             'info': self.info.__dict__,
-            'samples': [sample.to_json() for sample in self.samples]
+            'samples': self.samples
         }
+
+    def to_json_file(self, file_path: str, indent: bool = False):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_json(), f, indent=indent)
+
+    def add_data_sample(self, data_sample: DataSample, label: str):
+        self.samples[self.info.label_map[label]].append(data_sample.samples_to_1d_array())
+
+    def add_data_samples(self, data_samples: list[DataSample], label: str):
+        for data_sample in data_samples:
+            self.add_data_sample(data_sample, label)
+
+    def get_input_data(self) -> list[list[float]]:
+        samples: list[list[float]] = []
+        for label_sorted_samples in self.samples:
+            samples += label_sorted_samples
+        return samples
+
+    def get_output_data(self) -> list[int]:
+        labels: list[int] = []
+        for i in range(len(self.samples)):
+            labels += [i] * len(self.samples[i])
+        return labels
