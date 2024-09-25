@@ -27,8 +27,8 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
-
-from src.alphabet_recognizer import *
+from src.datasample import *
+from src.model_class.alphabet_recognizer_v1 import *
 
 
 mp_hands = mp.solutions.hands
@@ -60,15 +60,17 @@ def run(model: str, num_hands: int,
       width: The width of the frame captured from the camera.
       height: The height of the frame captured from the camera.
   """
+  count = 0
+  alphabet_model = LSFAlphabetRecognizerV1(27)
+  # alphabet_model.load_state_dict(torch.load('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth'))
+  alphabet_model.loadModel('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth')
 
   # Start capturing video input from the camera
   cap = cv2.VideoCapture(camera_id)
   cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
   cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-  cap.set(cv2.CAP_PROP_FPS, 10)
+  cap.set(cv2.CAP_PROP_FPS, 60)
 
-  alphabet_model = LSFAlphabetRecognizer()
-  alphabet_model.load_state_dict(torch.load('model.pth'))
 
 
   recognition_frame = None
@@ -191,8 +193,11 @@ def run(model: str, num_hands: int,
           mp_drawing_styles.get_default_hand_connections_style())
 
       for landmarks in recognition_result.hand_world_landmarks:
-        letter = LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks))]
-        if letter == '0':
+        try:
+          letter = LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks)) + 1]
+          if letter == '0':
+            letter = 'None'
+        except:
           letter = 'None'
         print(letter)
 
@@ -202,7 +207,7 @@ def run(model: str, num_hands: int,
 
 
       recognition_frame = current_frame
-      recognition_result = None
+      # recognition_result = None
 
     if recognition_frame is not None:
         cv2.imshow('gesture_recognition', recognition_frame)
@@ -213,17 +218,21 @@ def run(model: str, num_hands: int,
     if key == 27:
       break
     elif key != -1 and chr(key) in "abcdefghijklmnopqrstuvwxyz0":
-      dir = f"{SCRIPT_DIR}/{TARGET_FOLDER}"
       # dir = "."
-      files = os.listdir(dir)
-      file = f"{chr(key).upper()}.png"
-      i = 0
-      while file in files:
-        i += 1
-        file = f"{chr(key).upper()}{i}.png"
-      path = f"{dir}/{file}"
-      print(f"Key pressed: {key} (ASCII: {chr(key)}) saving to {path}")
-      cv2.imwrite(path, img_cpy)
+      # dir = f"{SCRIPT_DIR}/{TARGET_FOLDER}"
+      # files = os.listdir(dir)
+      # file = f"{chr(key).upper()}.png"
+      # i = 0
+      # while file in files:
+      #   i += 1
+      #   file = f"{chr(key).upper()}{i}.png"
+      # path = f"{dir}/{file}"
+      # print(f"Key pressed: {key} (ASCII: {chr(key)}) saving to {path}")
+      # cv2.imwrite(path, img_cpy)
+      with open(f"{chr(key).lower()}_{count}.json", 'w') as f:
+        sample = DataSample.from_handlandmarker(recognition_result, label=chr(key).lower(), label_id=0)
+        f.write(json.dumps(sample.to_json(), indent=4, ensure_ascii=False))
+      count += 1
 
 
   recognizer.close()
@@ -238,7 +247,7 @@ def main():
       '--model',
       help='Name of gesture recognition model.',
       required=False,
-      default='hand_landmarker.task')
+      default='models/hand_tracking/google/hand_landmarker.task')
   parser.add_argument(
       '--numHands',
       help='Max number of hands that can be detected by the recognizer.',

@@ -31,9 +31,9 @@ python example.py
 Do a sign and press on the corresponding letter on the keyboard or `0`if not a sign
 
 # Generate dataset
-
+> Find info with `-h` parameter
 ```sh
-python datasets/alphabet_dataset_generator.py
+python dataset_asm.py
 ```
 
 # Train AI Model
