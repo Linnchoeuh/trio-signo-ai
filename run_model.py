@@ -112,10 +112,10 @@ def recognize_sign(hand_landmarks: HandLandmarkerResult, sign_recognition_model:
         if len(hand_landmarks.hand_world_landmarks) != 0:
             return sign_recognition_model.use(LandmarksTo1DArray(hand_landmarks.hand_world_landmarks[0])), time.time() - start_time
     elif type(sign_recognition_model) == SignRecognizerV2:
-        # sign_recognition_model.add_frame(hand_landmarks)
-        # return sign_recognition_model.use(sign_recognition_model.input_data), time.time() - start_time
-        if len(hand_landmarks.hand_world_landmarks) != 0:
-            return sign_recognition_model.use(DataSample.from_handlandmarker(hand_landmarks, 0, 0).samples_to_1d_array()), time.time() - start_time
+        sign_recognition_model.add_frame(hand_landmarks)
+        return sign_recognition_model.use(sign_recognition_model.input_data), time.time() - start_time
+        # if len(hand_landmarks.hand_world_landmarks) != 0:
+        #     return sign_recognition_model.use(DataSample.from_handlandmarker(hand_landmarks, 0, 0).samples_to_1d_array()), time.time() - start_time
 
     return -1, time.time() - start_time
 
