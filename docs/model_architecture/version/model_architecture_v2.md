@@ -10,9 +10,9 @@ The **succession** of stack allows to reconstitute a movement, hence recognizing
 > Keep in mind that this model architecture is unable to tell the framerate.
 
 ## Input
-The model as for input:
+The model has:
 
-**(X_FrameInThePast * (1_IsHandInFrame + (21_DataPoint * 3_3dCoordinate))).**
+**(X_FrameInThePast * (21_DataPoint * 3_3dCoordinate))** input neurons.
 
 The input should look like something like that:
 ```c
@@ -21,7 +21,6 @@ The input should look like something like that:
 // ... : Other input neuron
 
 For each frame:
-    Is hand in frame       => ===
     For each data point:
         x                  => ===
         y                  => ===

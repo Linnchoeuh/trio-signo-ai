@@ -1,3 +1,4 @@
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -5,12 +6,40 @@ from torch.utils.data import Dataset, DataLoader
 import json
 
 from src.datasample import *
-from src.model_class.alphabet_recognizer_v2 import SignRecognizerV2
+from src.model_class.sign_recognizer_v1 import *
+from src.model_class.sign_recognizer_v2 import *
 
-train_data: TrainData = TrainData.from_json_file("trainset_23-09-2024_03-22-55.td.json")
+parser: argparse.ArgumentParser = argparse.ArgumentParser(
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+parser.add_argument(
+    '--trainset',
+    help='File path to the training set.',
+    required=True)
+parser.add_argument(
+    '--arch',
+    help='Model architecture to use. (Available: v1, v2)',
+    required=False,
+    default='v2')
+args: argparse.Namespace = parser.parse_args()
 
-print(train_data.get_input_data()[:2])
 
-model = SignRecognizerV2(len(train_data.info.labels))
+train_data: TrainData = TrainData.from_cbor_file(args.trainset)
 
-model.train(train_data)
+def get_label_name_file(model_name: str) -> str:
+    if model_name.endswith('.pth'):
+        model_name = model_name[:-4]
+    model_name += '_labels.json'
+    return model_name
+
+match args.arch:
+    case 'v1':
+        model = SignRecognizerV1(len(train_data.info.labels))
+        tmp = model.trainModel(train_data)
+        with open(get_label_name_file(tmp), 'w', encoding="utf-8") as f:
+            json.dump(ModelInfoV1(train_data.info.labels).__dict__, f)
+
+    case 'v2':
+        model = SignRecognizerV2(len(train_data.info.labels))
+        tmp = model.trainModel(train_data)
+        with open(get_label_name_file(tmp), 'w', encoding="utf-8") as f:
+            json.dump(ModelInfoV2(train_data.info.labels).__dict__, f)
