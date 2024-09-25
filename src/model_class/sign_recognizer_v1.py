@@ -4,38 +4,29 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import json
-import time
 from dataclasses import dataclass
+from src.datasample import *
 
 from mediapipe.tasks.python.components.containers.landmark import Landmark
 
-from src.datasample import *
-
 @dataclass
-class LabelMap:
-    label: dict
-    id: dict
-
-@dataclass
-class ModelInfoV2:
-    model_version: str
+class ModelInfoV1:
     labels: list[str]
+    model_version: str = "v2"
     model_name: str = ""
 
-FRAME_SIZE = 15
-POINTS = 3
-DATA_POINTS = 21
-NEURON_CHUNK = 1 + (DATA_POINTS * POINTS)
+def landmarks_to_list(landmarks: list[Landmark]):
+    return [[landmark.x, landmark.y, landmark.z] for landmark in landmarks]
 
-class SignRecognizerV2(nn.Module):
-    def __init__(self, output_size: int, input_frame_size: int = FRAME_SIZE):
-        super(SignRecognizerV2, self).__init__()
-        self.input_neurons = input_frame_size * NEURON_CHUNK
-        self.fc1 = nn.Linear(self.input_neurons, 128)
+def LandmarksTo1DArray(landmarks: list[Landmark]):
+    return [item for sublist in landmarks_to_list(landmarks) for item in sublist]
+
+class SignRecognizerV1(nn.Module):
+    def __init__(self, output_size: int):
+        super(SignRecognizerV1, self).__init__()
+        self.fc1 = nn.Linear(63, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, output_size)
-
-        self.input_data: list[float] = []
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -47,10 +38,6 @@ class SignRecognizerV2(nn.Module):
         self.load_state_dict(torch.load(model_path))
 
     def use(self, input: list[float]):
-        for i in range(len(input)):
-            input[i] = round(input[i], 3)
-        while len(input) < self.input_neurons:
-            input.append(0)
         self.eval()
         input_tensor = torch.tensor(input, dtype=torch.float32)
         with torch.no_grad():
@@ -58,7 +45,7 @@ class SignRecognizerV2(nn.Module):
         probabilities = F.softmax(logits, dim=0)
         return torch.argmax(probabilities, dim=0).item()
 
-    def train_model(self, train_data: TrainData, model_name: str = None, num_epochs: int = 20):
+    def trainModel(self, train_data: TrainData, model_name: str = None, num_epochs: int = 20) -> str:
         class CustomDataset(Dataset):
             def __init__(self, input: list[list[float]], output: list[int], model_input_neuron: int):
                 if len(input) != len(output):
@@ -100,17 +87,8 @@ class SignRecognizerV2(nn.Module):
 
         if model_name is None:
             model_name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}.pth"
-        else:
+        elif not model_name.endswith(".pth"):
             model_name += ".pth"
 
         torch.save(self.state_dict(), model_name)
-
-    def add_frame(self, hand_landmark: HandLandmarkerResult):
-        try:
-            sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
-            self.input_data += sample.samples_to_1d_array()
-        except:
-            for i in range(NEURON_CHUNK):
-                self.input_data.append(0)
-        while len(self.input_data) > self.input_neurons:
-            self.input_data.pop(0)
+        return model_name

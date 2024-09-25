@@ -7,31 +7,23 @@ from waitress import serve
 
 from src.logger import setup_logger
 
-from src.middlewares.after_logger import AfterLoggerMiddleware
-from src.middlewares.logger import LoggerMiddleware
-from src.middlewares.init import InitMiddleware
+from src.api.middlewares.after_logger import AfterLoggerMiddleware
+from src.api.middlewares.logger import LoggerMiddleware
+from src.api.middlewares.init import InitMiddleware
 
-from src.endpoints.ping import ping
-from src.endpoints.get_alphabet import get_alpahabet
+from src.api.endpoints.ping import ping
+from src.api.endpoints.get_alphabet import get_alpahabet
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 from mediapipe.tasks.python.vision.hand_landmarker import *
 
-from src.alphabet_recognizer import *
+from src.model_class.sign_recognizer_v1 import *
+from run_model import load_hand_landmarker
 
-def load_hand_tracker_model() -> HandLandmarker:
-    base_options = python.BaseOptions(model_asset_path="hand_landmarker.task")
-    options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options,
-                                                                  num_hands=1,
-                                                                  min_hand_detection_confidence=0,
-                                                                  min_hand_presence_confidence=0.1,
-                                                                  min_tracking_confidence=0)
-    recognizer: HandLandmarker = vision.HandLandmarker.create_from_options(options)
-    return recognizer
 
-def load_alphabet_recognizer_model() -> LSFAlphabetRecognizer:
-    model: LSFAlphabetRecognizer = LSFAlphabetRecognizer()
+def load_alphabet_recognizer_model() -> SignRecognizerV1:
+    model: SignRecognizerV1 = SignRecognizerV1()
     model.loadModel("model.pth")
     return model
 
@@ -55,8 +47,8 @@ def main():
     logger: logging.Logger = setup_logger(args.debug)
     logger.debug(f"Logger setup")
 
-    hand_tracker: HandLandmarker = load_hand_tracker_model()
-    alphabet_recognizer: LSFAlphabetRecognizer = load_alphabet_recognizer_model()
+    hand_tracker: HandLandmarker = load_hand_landmarker()
+    alphabet_recognizer: SignRecognizerV1 = load_alphabet_recognizer_model()
 
     logger.debug(f"AI Model loaded successfully")
 

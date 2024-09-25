@@ -17,6 +17,7 @@ import argparse
 import sys
 import os
 import glob
+import time
 
 import cv2
 import mediapipe as mp
@@ -29,14 +30,12 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.datasample import *
-from src.model_class.alphabet_recognizer_v1 import *
-from src.model_class.alphabet_recognizer_v2 import *
+from src.model_class.sign_recognizer_v1 import *
+from src.model_class.sign_recognizer_v2 import *
 
 HAND_TRACKING_MODEL_PATH = "models/hand_tracking/google/hand_landmarker.task"
 
-
-
-def load_sign_recognizer(model_dir: str) -> tuple[LSFAlphabetRecognizerV1, list[str]]:
+def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, list[str]]:
     json_files = glob.glob(f"{model_dir}/*.json")
     if len(json_files) == 0:
         raise FileNotFoundError(f"No .json file found in {model_dir}")
@@ -48,7 +47,7 @@ def load_sign_recognizer(model_dir: str) -> tuple[LSFAlphabetRecognizerV1, list[
     match model_info["model_version"]:
         case "v1":
             tmp: ModelInfoV1 = ModelInfoV1(**model_info)
-            model = LSFAlphabetRecognizerV1(len(tmp.labels))
+            model = SignRecognizerV1(len(tmp.labels))
             model.loadModel(pth_files[0])
         case "v2":
             tmp: ModelInfoV2 = ModelInfoV2(**model_info)
@@ -61,14 +60,16 @@ def load_sign_recognizer(model_dir: str) -> tuple[LSFAlphabetRecognizerV1, list[
 
 def load_hand_landmarker(num_hand: int) -> HandLandmarker:
     base_options = python.BaseOptions(model_asset_path=HAND_TRACKING_MODEL_PATH)
-    options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options, num_hands=num_hand)
+    options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options,
+                                                                  num_hands=num_hand)
     recognizer: HandLandmarker = vision.HandLandmarker.create_from_options(options)
     return recognizer
 
-def track_hand(image: cv2.typing.MatLike, hand_tracker: HandLandmarker) -> HandLandmarkerResult:
+def track_hand(image: cv2.typing.MatLike, hand_tracker: HandLandmarker) -> tuple[HandLandmarkerResult, float]:
+    start_time = time.time()
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
     mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_image)
-    return hand_tracker.detect(mp_image)
+    return hand_tracker.detect(mp_image), time.time() - start_time
 
 def draw_land_marks(image: cv2.typing.MatLike, hand_landmarks: HandLandmarkerResult) -> cv2.typing.MatLike:
     img_cpy: cv2.typing.MatLike = image.copy()
@@ -105,15 +106,18 @@ def draw_land_marks(image: cv2.typing.MatLike, hand_landmarks: HandLandmarkerRes
           mp_drawing_styles.get_default_hand_connections_style())
     return img_cpy
 
-def recognize_sign(hand_landmarks: HandLandmarkerResult, sign_recognition_model: LSFAlphabetRecognizerV1 | SignRecognizerV2) -> int:
-    if type(sign_recognition_model) == LSFAlphabetRecognizerV1:
-        if len(hand_landmarks.hand_world_landmarks) == 0:
-            return 0
-        return sign_recognition_model.use(LandmarksTo1DArray(hand_landmarks.hand_world_landmarks[0]))
+def recognize_sign(hand_landmarks: HandLandmarkerResult, sign_recognition_model: SignRecognizerV1 | SignRecognizerV2) -> tuple[int, float]:
+    start_time = time.time()
+    if type(sign_recognition_model) == SignRecognizerV1:
+        if len(hand_landmarks.hand_world_landmarks) != 0:
+            return sign_recognition_model.use(LandmarksTo1DArray(hand_landmarks.hand_world_landmarks[0])), time.time() - start_time
     elif type(sign_recognition_model) == SignRecognizerV2:
-        sign_recognition_model.add_frame(hand_landmarks)
-        return sign_recognition_model.use(sign_recognition_model.input_data)
+        # sign_recognition_model.add_frame(hand_landmarks)
+        # return sign_recognition_model.use(sign_recognition_model.input_data), time.time() - start_time
+        if len(hand_landmarks.hand_world_landmarks) != 0:
+            return sign_recognition_model.use(DataSample.from_handlandmarker(hand_landmarks, 0, 0).samples_to_1d_array()), time.time() - start_time
 
+    return -1, time.time() - start_time
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
@@ -137,7 +141,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print("Loading sign recognition model...")
-    sing_rec_model = load_sign_recognizer(args.model)
+    sign_rec_model = load_sign_recognizer(args.model)
 
     print("Loading hand landmarker...")
     hand_tracker: HandLandmarker = load_hand_landmarker(args.numHands)
@@ -149,6 +153,9 @@ if __name__ == '__main__':
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 500)
     cap.set(cv2.CAP_PROP_FPS, 60)
 
+    handtrack_times = []
+    sign_rec_times = []
+
     while cap.isOpened():
         success, image = cap.read()
         if not success:
@@ -158,11 +165,28 @@ if __name__ == '__main__':
 
         image = cv2.flip(image, 1)
 
+        hand_landmarks: HandLandmarkerResult = None
 
-        hand_landmarks: HandLandmarkerResult = track_hand(image, hand_tracker)
-        print(f"\r\033[K{sing_rec_model[1][recognize_sign(hand_landmarks, sing_rec_model[0])]}", end=" ")
+        hand_landmarks, handtrack_time = track_hand(image, hand_tracker)
+        handtrack_times.append(handtrack_time)
+        if len(handtrack_times) > 10:
+            handtrack_times.pop(0)
+        handtrack_time = sum(handtrack_times) / len(handtrack_times)
+
+        recognized_sign, sign_rec_time = recognize_sign(hand_landmarks, sign_rec_model[0])
+        sign_rec_times.append(sign_rec_time)
+        if len(sign_rec_times) > 10:
+            sign_rec_times.pop(0)
+        sign_rec_time = sum(sign_rec_times) / len(sign_rec_times)
+
         image = draw_land_marks(image, hand_landmarks)
 
+        text = "undefined"
+        if recognized_sign != -1:
+            text = sign_rec_model[1][recognized_sign]
+        cv2.putText(image, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
+        cv2.putText(image, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        print(f"\r\033[KTrack time: {(handtrack_time * 1000):.3f}ms Recognition time: {(sign_rec_time * 1000):.3f}ms Output: {text}", end=" ")
         cv2.imshow('Run model', image)
 
 
@@ -172,3 +196,4 @@ if __name__ == '__main__':
     hand_tracker.close()
     cap.release()
     cv2.destroyAllWindows()
+print()

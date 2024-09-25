@@ -5,7 +5,10 @@ from src.rot_3d import *
 import random
 import math
 import json
+import cbor2
 
+def clamp(value, min_value, max_value):
+    return max(min_value, min(value, max_value))
 
 @dataclass
 class GestureData:
@@ -124,8 +127,8 @@ class DataSample:
     def samples_to_1d_array(self) -> list[float]:
         raw_data = []
         for gesture in self.gestures:
-            # raw_data.append([1] + gesture.to_list())
-            raw_data += [1] + gesture.to_list()
+            # raw_data.append(gesture.to_list())
+            raw_data += gesture.to_list()
         return raw_data
 
     def mirror_sample(self, mirror_x: bool = True, mirror_y: bool = False, mirror_z: bool = False) -> 'DataSample':
@@ -155,9 +158,9 @@ class DataSample:
         for i in range(len(self.gestures)):
             for field in fields(self.gestures[i]):
                 field_value: list[float] = getattr(self.gestures[i], field.name)
-                field_value[0] += (random.random() - 0.5) * factor
-                field_value[1] += (random.random() - 0.5) * factor
-                field_value[2] += (random.random() - 0.5) * factor
+                field_value[0] += clamp((random.random() - 0.5) * factor, -1, 1)
+                field_value[1] += clamp((random.random() - 0.5) * factor, -1, 1)
+                field_value[2] += clamp((random.random() - 0.5) * factor, -1, 1)
                 setattr(self.gestures[i], field.name, field_value)
         return self
 
@@ -268,6 +271,7 @@ class TrainDataInfo:
 class TrainData:
     info: TrainDataInfo
     samples: list[list[list[float]]]
+    sample_count: int
 
     def __init__(self, info: TrainDataInfo, samples: list[list[list[float]]] = None):
         self.info = info
@@ -278,6 +282,7 @@ class TrainData:
             self.samples = []
             while len(self.samples) < len(info.labels):
                 self.samples.append([])
+        self.sample_count = sum([len(label_samples) for label_samples in self.samples])
 
     @classmethod
     def from_json(cls, json_data):
@@ -292,6 +297,16 @@ class TrainData:
             data = json.load(f)
         return cls.from_json(data)
 
+    @classmethod
+    def from_cbor(cls, cbor_data):
+        return cls.from_json(cbor2.loads(cbor_data))
+
+    @classmethod
+    def from_cbor_file(cls, file_path: str):
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        return cls.from_cbor(data)
+
     def to_json(self):
         return {
             'info': self.info.__dict__,
@@ -302,8 +317,16 @@ class TrainData:
         with open(file_path, 'w', encoding="utf-8") as f:
             json.dump(self.to_json(), f, indent=indent)
 
+    def to_cbor(self):
+        return cbor2.dumps(self.to_json())
+
+    def to_cbor_file(self, file_path: str):
+        with open(file_path, 'wb') as f:
+            f.write(self.to_cbor())
+
     def add_data_sample(self, data_sample: DataSample, label: str):
         self.samples[self.info.label_map[label]].append(data_sample.samples_to_1d_array())
+        self.sample_count += 1
 
     def add_data_samples(self, data_samples: list[DataSample], label: str):
         for data_sample in data_samples:

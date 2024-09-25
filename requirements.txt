@@ -6,3 +6,4 @@ waitress
 torch
 pillow
 flask-cors
+cbor2
