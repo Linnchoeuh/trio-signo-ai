@@ -28,11 +28,11 @@ sys.path.append(parent_dir)
 from src.alphabet_recognizer import LABEL_MAP
 
 
-@dataclass
-class DataSample:
-    label: str
-    label_id: int
-    input: list[float]
+# @dataclass
+# class DataSample:
+#     label: str
+#     label_id: int
+#     input: list[float]
 
 def landmarks_to_list(landmarks: list[Landmark]):
     return [[landmark.x, landmark.y, landmark.z] for landmark in landmarks]
@@ -71,7 +71,7 @@ mp_hands = mp.solutions.hands
 mp_drawing = mp.solutions.drawing_utils
 mp_drawing_styles = mp.solutions.drawing_styles
 
-dataset: list[DataSample] = []
+dataset: list = []
 
 base_options = python.BaseOptions(model_asset_path=f"{path_from_script}/../hand_landmarker.task")
 options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options, num_hands=1,
@@ -79,6 +79,8 @@ options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_
                                                               min_hand_presence_confidence=0.1,
                                                               min_tracking_confidence=0)
 recognizer: HandLandmarker = vision.HandLandmarker.create_from_options(options)
+
+from datasample import DataSample
 
 for folder in os.listdir(f"{path_from_script}/source_images"):
     print(f"Found file: {folder} in {path_from_script}/source_images")
@@ -126,10 +128,32 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                 mp_drawing_styles.get_default_hand_landmarks_style(),
                 mp_drawing_styles.get_default_hand_connections_style())
 
+        if len(recognition_result.hand_world_landmarks) > 0:
+            label = file[0].lower()
+            sample = DataSample.from_handlandmarker(recognition_result, label=label, label_id=LABEL_MAP.label[file[0]])
+            print(sample)
+            if label == "0":
+                label = "_null"
+            target_folder = f"{path_from_script}/tmp/{label}"
+            os.makedirs(target_folder, exist_ok=True)
+
+            i = 0
+            file_name = f"{label}_{i}.json"
+            files = os.listdir(target_folder)
+            while file_name in files:
+                i += 1
+                file_name = f"{label}_{i}.json"
+
+            print(f"Writing to {file_name}")
+            with open(f"{target_folder}/{file_name}", "w", encoding='utf-8') as f:
+                f.write(json.dumps(sample.to_json(), indent=4, ensure_ascii=False))
+
         for landmarks in recognition_result.hand_world_landmarks:
             # Add the original hand
-            original = landmarks_to_list(landmarks)
-            dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(original)))
+            print(landmarks)
+            # original = landmarks_to_list(landmarks)
+            # dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(original)))
+            """
 
             # Add the mirrored hand
             original_mirror = copy.deepcopy(original)
@@ -169,7 +193,7 @@ for folder in os.listdir(f"{path_from_script}/source_images"):
                             rotated_random[i][2] += (random.random() - 0.5) * 0.001
                         dataset.append(DataSample(label=file[0], label_id=LABEL_MAP.label[file[0]], input=to_1d_array(rotated_random)))
 
-
+        """
 
         if not recognition_result.hand_world_landmarks:
             print(f"No hand detected for {file}")
