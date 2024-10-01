@@ -12,25 +12,23 @@ from mediapipe.tasks.python.components.containers.landmark import Landmark
 from src.datasample import *
 
 @dataclass
-class ModelInfoV2:
+class ModelInfoV1:
     labels: list[str]
-    model_version: str = "v2"
+    memory_frame: int
+    model_version: str = "v1"
     model_name: str = ""
 
-FRAME_SIZE = 15
-POINTS = 3
-DATA_POINTS = 21
-NEURON_CHUNK = (DATA_POINTS * POINTS)
 
-class SignRecognizerV2(nn.Module):
-    def __init__(self, output_size: int, input_frame_size: int = FRAME_SIZE):
-        super(SignRecognizerV2, self).__init__()
-        self.input_neurons = input_frame_size * NEURON_CHUNK
+FRAME_SIZE = 15
+
+
+class SignRecognizerV1(nn.Module):
+    def __init__(self, output_size: int, nb_of_memory_frame: int = FRAME_SIZE):
+        super(SignRecognizerV1, self).__init__()
+        self.input_neurons = nb_of_memory_frame * NEURON_CHUNK
         self.fc1 = nn.Linear(self.input_neurons, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, output_size)
-
-        self.input_data: list[float] = []
 
     def forward(self, x):
         x = torch.relu(self.fc1(x))
@@ -42,8 +40,8 @@ class SignRecognizerV2(nn.Module):
         self.load_state_dict(torch.load(model_path))
 
     def use(self, input: list[float]):
-        for i in range(len(input)):
-            input[i] = round(input[i], 3)
+        # for i in range(len(input)):
+        #     input[i] = round(input[i], 3)
         while len(input) < self.input_neurons:
             input.append(0)
         self.eval()
@@ -101,12 +99,12 @@ class SignRecognizerV2(nn.Module):
         torch.save(self.state_dict(), model_name)
         return model_name
 
-    def add_frame(self, hand_landmark: HandLandmarkerResult):
-        try:
-            sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
-            self.input_data += sample.samples_to_1d_array()
-        except:
-            for i in range(NEURON_CHUNK):
-                self.input_data.append(0)
-        while len(self.input_data) > self.input_neurons:
-            self.input_data.pop(0)
+    # def add_frame(self, hand_landmark: HandLandmarkerResult):
+    #     try:
+    #         sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
+    #         self.input_data += sample.samples_to_1d_array()
+    #     except:
+    #         for i in range(NEURON_CHUNK):
+    #             self.input_data.append(0)
+    #     while len(self.input_data) > self.input_neurons:
+    #         self.input_data.pop(0)
