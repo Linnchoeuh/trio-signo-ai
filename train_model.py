@@ -17,9 +17,9 @@ parser.add_argument(
     required=True)
 parser.add_argument(
     '--arch',
-    help='Model architecture to use. (Available: v1, v2)',
+    help='Model architecture to use. (Available: v1)',
     required=False,
-    default='v2')
+    default='v1')
 args: argparse.Namespace = parser.parse_args()
 
 
@@ -36,10 +36,7 @@ match args.arch:
         model = SignRecognizerV1(len(train_data.info.labels))
         tmp = model.trainModel(train_data)
         with open(get_label_name_file(tmp), 'w', encoding="utf-8") as f:
-            json.dump(ModelInfoV1(train_data.info.labels).__dict__, f)
+            json.dump(ModelInfoV1(train_data.info.labels, FRAME_SIZE).__dict__, f)
 
-    case 'v2':
-        model = SignRecognizerV2(len(train_data.info.labels))
-        tmp = model.trainModel(train_data)
-        with open(get_label_name_file(tmp), 'w', encoding="utf-8") as f:
-            json.dump(ModelInfoV2(train_data.info.labels).__dict__, f)
+    case _:
+        raise ValueError(f"Model architecture {args.arch} not found.")

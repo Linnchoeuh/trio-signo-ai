@@ -30,12 +30,11 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.datasample import *
-from src.model_class.sign_recognizer_v1 import *
 from src.model_class.sign_recognizer_v2 import *
 
 HAND_TRACKING_MODEL_PATH = "models/hand_tracking/google/hand_landmarker.task"
 
-def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, list[str]]:
+def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, ModelInfoV1]:
     json_files = glob.glob(f"{model_dir}/*.json")
     if len(json_files) == 0:
         raise FileNotFoundError(f"No .json file found in {model_dir}")
@@ -47,16 +46,12 @@ def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, list[str]]:
     match model_info["model_version"]:
         case "v1":
             tmp: ModelInfoV1 = ModelInfoV1(**model_info)
-            model = SignRecognizerV1(len(tmp.labels))
-            model.loadModel(pth_files[0])
-        case "v2":
-            tmp: ModelInfoV2 = ModelInfoV2(**model_info)
-            model = SignRecognizerV2(len(tmp.labels))
+            model = SignRecognizerV1(len(tmp.labels), tmp.memory_frame)
             model.loadModel(pth_files[0])
         case _:
             raise ValueError(f"Model version {model_info['model_version']} not supported")
     print(model_info)
-    return model, tmp.labels
+    return model, tmp
 
 def load_hand_landmarker(num_hand: int) -> HandLandmarker:
     base_options = python.BaseOptions(model_asset_path=HAND_TRACKING_MODEL_PATH)
@@ -106,17 +101,12 @@ def draw_land_marks(image: cv2.typing.MatLike, hand_landmarks: HandLandmarkerRes
           mp_drawing_styles.get_default_hand_connections_style())
     return img_cpy
 
-def recognize_sign(hand_landmarks: HandLandmarkerResult, sign_recognition_model: SignRecognizerV1 | SignRecognizerV2) -> tuple[int, float]:
+def recognize_sign(sample: DataSample, sign_recognition_model: SignRecognizerV1) -> tuple[int, float]:
     start_time = time.time()
-    if type(sign_recognition_model) == SignRecognizerV1:
-        if len(hand_landmarks.hand_world_landmarks) != 0:
-            return sign_recognition_model.use(LandmarksTo1DArray(hand_landmarks.hand_world_landmarks[0])), time.time() - start_time
-    elif type(sign_recognition_model) == SignRecognizerV2:
-        sign_recognition_model.add_frame(hand_landmarks)
-        return sign_recognition_model.use(sign_recognition_model.input_data), time.time() - start_time
-        # if len(hand_landmarks.hand_world_landmarks) != 0:
-        #     return sign_recognition_model.use(DataSample.from_handlandmarker(hand_landmarks, 0, 0).samples_to_1d_array()), time.time() - start_time
-
+    if type(sign_recognition_model) is SignRecognizerV1:
+        return sign_recognition_model.use(sample.samples_to_1d_array()), time.time() - start_time
+    else:
+        raise ValueError("Model type not supported")
     return -1, time.time() - start_time
 
 if __name__ == '__main__':
@@ -141,7 +131,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print("Loading sign recognition model...")
-    sign_rec_model = load_sign_recognizer(args.model)
+    sign_rec_model, model_info = load_sign_recognizer(args.model)
 
     print("Loading hand landmarker...")
     hand_tracker: HandLandmarker = load_hand_landmarker(args.numHands)
@@ -155,6 +145,7 @@ if __name__ == '__main__':
 
     handtrack_times = []
     sign_rec_times = []
+    frame_history: DataSample = DataSample("", [])
 
     while cap.isOpened():
         success, image = cap.read()
@@ -173,17 +164,21 @@ if __name__ == '__main__':
             handtrack_times.pop(0)
         handtrack_time = sum(handtrack_times) / len(handtrack_times)
 
-        recognized_sign, sign_rec_time = recognize_sign(hand_landmarks, sign_rec_model[0])
+        frame_history.pushfront_gesture_from_landmarks(hand_landmarks)
+        while len(frame_history.gestures) > model_info.memory_frame:
+            frame_history.gestures.pop(0)
+
+        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec_model)
         sign_rec_times.append(sign_rec_time)
         if len(sign_rec_times) > 10:
-            sign_rec_times.pop(0)
+            sign_rec_times.pop(-1)
         sign_rec_time = sum(sign_rec_times) / len(sign_rec_times)
 
         image = draw_land_marks(image, hand_landmarks)
 
         text = "undefined"
         if recognized_sign != -1:
-            text = sign_rec_model[1][recognized_sign]
+            text = model_info.labels[recognized_sign]
         cv2.putText(image, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
         cv2.putText(image, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         print(f"\r\033[KTrack time: {(handtrack_time * 1000):.3f}ms Recognition time: {(sign_rec_time * 1000):.3f}ms Output: {text}", end=" ")
