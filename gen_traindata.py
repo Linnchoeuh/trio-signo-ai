@@ -4,78 +4,130 @@ import json
 import time
 import copy
 import random
+from collections import deque
 
 from dataclasses import dataclass
 from src.model_class.sign_recognizer_v2 import *
 
 from src.datasample import *
 
-DATASET_NAME = None
 DATASETS_DIR = "datasets"
-SUBSET = 1 # number of subdatasets to create
-NB_FRAME = 15
-DATASETS: list[str] = [] # Dataset to use
 ROT_ANGLE = math.pi / 4
-ANGLE_SPLIT = 3
-SUB_ANGLE = ROT_ANGLE / (ANGLE_SPLIT - 1)
-
 def rand_interval(min: float, max: float) -> float:
     return random.random() * (max - min) + min
 
 def rand_fix_interval(gap: float) -> float:
     return rand_interval(-gap, gap)
 
-def print_progression(label_id, dataset_samples, data_sample, subset, sample_count):
-    print(f"\r\033[KCreating dataset: [Label Name: {DATASETS[label_id]}] [Label: {label_id}/{len(DATASETS)}] [Datasample: {data_sample}/{len(dataset_samples)}] [Subset Generation: {subset}/{SUBSET}] [Sample created: {sample_count}]", end="")
+def print_progression(dataset_labels: list[str], label_id: int,
+                      treated_sample: int, label_total_samples: int,
+                      subset: int, total_subset: int,
+                      created_sample: int,
+                      start_time: float, completed_cycle: int, total_cycle: int):
+    elapsed_time = time.time() - start_time
+    one_cycle_time = 1
+    if completed_cycle != 0:
+        one_cycle_time = elapsed_time / completed_cycle
+    remaining_time = one_cycle_time * (total_cycle - completed_cycle)
+    remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time))
+
+    print(f"\r\033[KCreating dataset: "
+        f"[Label ({dataset_labels[label_id]}): {label_id}/{len(dataset_labels)}] "
+        f"[Datasample: {treated_sample}/{label_total_samples}] "
+        f"[Subset Generation: {subset}/{total_subset}] "
+        f"[Sample created: {created_sample}] "
+        f"Remain time: {remaining_time_str} {completed_cycle}/{total_cycle}", end="")
 
 def create_array(size: int, value: float = 0) -> list[float]:
     return
 
-def create_subset(sample: DataSample) -> list[DataSample]:
-    sub_sample: list[DataSample] = []
+def create_subset(sample: DataSample, nb_frame: int) -> list[DataSample]:
+    sub_sample: deque[DataSample] = deque()
 
     mirror_sample = copy.deepcopy(sample)
     mirror_sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
 
-    def get_randomize_copy(sample: DataSample) -> DataSample:
-        return copy.deepcopy(sample).randomize_points()
-
-
     if len(sample.gestures) == 1:
-        for x in range(ANGLE_SPLIT):
-            for y in range(ANGLE_SPLIT):
-                for samp in [sample, mirror_sample]:
-                    tmp: DataSample = copy.deepcopy(samp)
-                    tmp.rotate_sample((x * SUB_ANGLE) - (ROT_ANGLE / 2) + (rand_fix_interval(SUB_ANGLE) / 2),
-                                      (y * SUB_ANGLE) - (ROT_ANGLE / 2) + (rand_fix_interval(SUB_ANGLE) / 2),
-                                      rand_fix_interval(math.pi / 10))
-                    sub_sample.append(copy.deepcopy(tmp))
-                    sub_sample.append(copy.deepcopy(tmp).deform_hand(1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3)))
-                    sub_sample.append(copy.deepcopy(tmp).translate_hand(rand_fix_interval(0.01), rand_fix_interval(0.01), rand_fix_interval(0.01)))
+        for samp in [sample, mirror_sample]:
+            tmp: DataSample = copy.deepcopy(samp)
+            # Create a rotated variation
+            tmp.rotate_sample(ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+                              ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+                              rand_fix_interval(math.pi / 10))
+            tmp.deform_hand(1 + rand_fix_interval(0.2),
+                            1 + rand_fix_interval(0.2),
+                            1 + rand_fix_interval(0.2))
+            tmp.translate_hand(rand_fix_interval(0.01),
+                                 rand_fix_interval(0.01),
+                                 rand_fix_interval(0.01))
+            sub_sample.append(tmp)
 
+            # sub_sample.append(tmp)
+            # # Create a deformed variation
+            # sub_sample.append(copy.deepcopy(tmp).deform_hand(1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3)))
+            # # Create a translated variation
+            # sub_sample.append(copy.deepcopy(tmp).translate_hand(rand_fix_interval(0.01), rand_fix_interval(0.01), rand_fix_interval(0.01)))
+
+
+            # sub_sample.append(tmp)
+            # # Create a deformed variation
+            # sub_sample.append(tmp)
+            # sub_sample[-1].deform_hand(1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3))
+            # # Create a translated variation
+            # sub_sample.append(tmp)
+            # sub_sample[-1].translate_hand(rand_fix_interval(0.01), rand_fix_interval(0.01), rand_fix_interval(0.01))
+
+        # Keep in memory the size of the previously generated sub_sample
         sub_sample_count: int = len(sub_sample)
+        # print(sub_sample_count)
+        sub_sample_cpy = copy.deepcopy(sub_sample)
+
+        # Create varations with with randomized filled frames
         for i in range(sub_sample_count):
             tmp: DataSample = copy.deepcopy(sub_sample[i])
-            empty_gesture = GestureData.from_list([0 for _ in range(NEURON_CHUNK)])
-
-            while len(tmp.gestures) < NB_FRAME:
-                tmp.gestures.append(empty_gesture)
+            while len(tmp.gestures) < nb_frame:
+                tmp.gestures.append(GestureData.from_list([rand_fix_interval(0.15) for _ in range(NEURON_CHUNK)])) # 0.15 is the max value I can find on hand landmark
             sub_sample.append(tmp)
-            for k in range(5):
-                tmp = copy.deepcopy(sub_sample[i])
-                while len(tmp.gestures) < NB_FRAME:
-                    tmp.gestures.append(GestureData.from_list([rand_fix_interval(0.15) for _ in range(NEURON_CHUNK)])) # 0.15 is the max value I can find on hand landmark
-                sub_sample.append(tmp)
+        # Add randomization to all subsample created so far
         for i in range(len(sub_sample)):
             sub_sample[i].randomize_points()
 
+        # print(len(sub_sample))
+        # Generate coherent image succesion for each sub_sample
+        for i in range(sub_sample_count):
+            tmp: DataSample = copy.deepcopy(sub_sample[i])
+            k = len(tmp.gestures)
+            while k < nb_frame * 1.5:
+                tmp.gestures.insert(0, copy.deepcopy(sub_sample_cpy[i]).randomize_points().gestures[0])
+                while len(tmp.gestures) > nb_frame:
+                    tmp.gestures.pop(-1)
+                    # print(len(sub_sample_cpy2[i].gestures))
+                sub_sample.append(tmp)
+                k += 1
+
+            tmp = copy.deepcopy(sub_sample[i])
+            k = len(tmp.gestures)
+            while k < nb_frame:
+                if random.randint(0, nb_frame // 3) == 0:
+                    if random.randint(0, 1) == 0:
+                        tmp.gestures.insert(0, GestureData.from_list([rand_fix_interval(0.15) for _ in range(NEURON_CHUNK)]))
+                    else:
+                        tmp.gestures.insert(0, GestureData.from_list([0 for _ in range(NEURON_CHUNK)]))
+                else:
+                    tmp.gestures.insert(0, copy.deepcopy(sub_sample_cpy[i]).randomize_points().gestures[0])
+                sub_sample.append(tmp)
+                k += 1
     else:
         pass
 
-    return sub_sample
+    return list(sub_sample)
 
 
 i = 1
+dataset_labels: list[str] = []
+total_subsets: int = 1
+dataset_name: str = None
+nb_frame = 15
 while i < len(sys.argv):
     args = sys.argv[i]
     if args.startswith("-"):
@@ -84,46 +136,69 @@ while i < len(sys.argv):
                 print("Help not written yet :/")
             case "s":
                 i += 1
-                SUBSET = int(sys.argv[i])
+                total_subsets = int(sys.argv[i])
             case "n":
                 i += 1
-                DATASET_NAME = sys.argv[i]
+                dataset_name = sys.argv[i]
+            case "f":
+                i += 1
+                nb_frame = int(sys.argv[i])
     else:
-        DATASETS.append(args)
+        dataset_labels.append(args)
     i += 1
 
 folders = os.listdir(DATASETS_DIR)
 
 valid = True
-for dataset in DATASETS:
+for dataset in dataset_labels:
     if dataset not in folders:
         print(f"Dataset\"{dataset}\" not found in {DATASETS_DIR}")
         valid = False
 if not valid:
     exit(1)
 
-if DATASET_NAME is None:
+if dataset_name is None:
     timestamp = time.time()
     # Convert the timestamp to local time (struct_time object)
     local_time = time.localtime(timestamp)
     # Format the local time as a string
     formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
-    DATASET_NAME = f"trainset_{formatted_date}"
+    dataset_name = f"trainset_{formatted_date}"
 
 
-train_data: TrainData = TrainData(TrainDataInfo(DATASETS))
+train_data: TrainData = TrainData(TrainDataInfo(dataset_labels, nb_frame))
 
-for label_id in range(len(DATASETS)):
-    data_sample = 0
-    dataset_samples = os.listdir(f"{DATASETS_DIR}/{DATASETS[label_id]}")
+start_time = time.time()
+total_cycle = 0
+for label_id in range(len(dataset_labels)):
+    dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
+    total_cycle += len(dataset_samples) * total_subsets
+completed_cycle = 0
+
+for label_id in range(len(dataset_labels)):
+    treated_sample = 0
+    dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
+    label_total_samples = len(dataset_samples)
     for dataset_sample in dataset_samples:
-        with open(f"{DATASETS_DIR}/{DATASETS[label_id]}/{dataset_sample}", "r", encoding="utf-8") as f:
-            data: DataSample = DataSample.from_json(json.load(f), label_id=label_id)
-        train_data.add_data_sample(data, DATASETS[label_id])
-        for subset in range(SUBSET):
-            train_data.add_data_samples(create_subset(data), DATASETS[label_id])
+        with open(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}", "r", encoding="utf-8") as f:
+            data_sample: DataSample = DataSample.from_json(json.load(f), label_id=label_id)
+        train_data.add_data_sample(data_sample, dataset_labels[label_id])
+        subset = 0
+        while subset < total_subsets:
+            print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
+            # create_subset(data)
+            train_data.add_data_samples(create_subset(data_sample, nb_frame), dataset_labels[label_id])
+            completed_cycle += 1
+            subset += 1
+        print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
-        print_progression(label_id, dataset_samples, data_sample, subset, train_data.sample_count)
-        data_sample += 1
+        treated_sample += 1
+    print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
+print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
-train_data.to_cbor_file(f"./{DATASET_NAME}.cbor")
+print()
+print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+print("Total sample created: ", train_data.sample_count)
+print("Saving dataset...")
+train_data.to_cbor_file(f"./{dataset_name}.cbor")
+# train_data.to_json_file(f"./{dataset_name}.json")
