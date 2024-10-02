@@ -20,23 +20,34 @@ parser.add_argument(
     help='Model architecture to use. (Available: v1)',
     required=False,
     default='v1')
-args: argparse.Namespace = parser.parse_args()
+parser.add_argument(
+    '--memory_frame',
+    help='Number of frame in the past the model will see',
+    required=False,
+    default=None)
+parser.add_argument(
+    '--name',
+    help='Name of the model',
+    required=False,
+    default=None)
 
+args: argparse.Namespace = parser.parse_args()
 
 train_data: TrainData = TrainData.from_cbor_file(args.trainset)
 
-def get_label_name_file(model_name: str) -> str:
-    if model_name.endswith('.pth'):
-        model_name = model_name[:-4]
-    model_name += '_labels.json'
-    return model_name
+memory_frame: int = args.memory_frame
+if memory_frame is None:
+    memory_frame = train_data.info.memory_frame
+else:
+    memory_frame = int(memory_frame)
+
+
 
 match args.arch:
     case 'v1':
-        model = SignRecognizerV1(len(train_data.info.labels))
-        tmp = model.trainModel(train_data)
-        with open(get_label_name_file(tmp), 'w', encoding="utf-8") as f:
-            json.dump(ModelInfoV1(train_data.info.labels, FRAME_SIZE).__dict__, f)
+        model = SignRecognizerV1(len(train_data.info.labels), memory_frame)
+        model.trainModel(train_data)
+        model.saveModel(train_data, args.name)
 
     case _:
         raise ValueError(f"Model architecture {args.arch} not found.")

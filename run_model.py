@@ -43,6 +43,7 @@ def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, ModelInfoV1]
         raise FileNotFoundError(f"No .pth file found in {model_dir}")
     with open(json_files[0], "r") as f:
         model_info: dict[str, list[str] | str] = json.load(f)
+    print(model_info)
     match model_info["model_version"]:
         case "v1":
             tmp: ModelInfoV1 = ModelInfoV1(**model_info)
@@ -50,7 +51,6 @@ def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, ModelInfoV1]
             model.loadModel(pth_files[0])
         case _:
             raise ValueError(f"Model version {model_info['model_version']} not supported")
-    print(model_info)
     return model, tmp
 
 def load_hand_landmarker(num_hand: int) -> HandLandmarker:
@@ -134,7 +134,7 @@ if __name__ == '__main__':
     sign_rec_model, model_info = load_sign_recognizer(args.model)
 
     print("Loading hand landmarker...")
-    hand_tracker: HandLandmarker = load_hand_landmarker(args.numHands)
+    hand_tracker: HandLandmarker = load_hand_landmarker(int(args.numHands))
 
     print("Initializing camera...")
     # Start capturing video input from the camera
@@ -166,12 +166,14 @@ if __name__ == '__main__':
 
         frame_history.pushfront_gesture_from_landmarks(hand_landmarks)
         while len(frame_history.gestures) > model_info.memory_frame:
-            frame_history.gestures.pop(0)
+            frame_history.gestures.pop(-1)
 
+        # frame_history.gestures.reverse()
         recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec_model)
+        # frame_history.gestures.reverse()
         sign_rec_times.append(sign_rec_time)
         if len(sign_rec_times) > 10:
-            sign_rec_times.pop(-1)
+            sign_rec_times.pop(0)
         sign_rec_time = sum(sign_rec_times) / len(sign_rec_times)
 
         image = draw_land_marks(image, hand_landmarks)
