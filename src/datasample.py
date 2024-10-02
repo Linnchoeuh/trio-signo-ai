@@ -10,6 +10,10 @@ import cbor2
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
 
+POINTS = 3
+DATA_POINTS = 21
+NEURON_CHUNK = (DATA_POINTS * POINTS)
+
 @dataclass
 class GestureData:
     wrist: list[float, float, float] # [x, y, z]
@@ -98,6 +102,7 @@ class DataSample:
     label: str
     gestures: list[GestureData]
     label_id: int | None = None
+    # fps: int = 1
 
     @classmethod
     def from_json(cls, json_data, label_id: int = None):
@@ -108,6 +113,12 @@ class DataSample:
             label_id=label_id,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
+
+    @classmethod
+    def from_json_file(cls, file_path: str, label_id: int = None):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_json(data, label_id)
 
     @classmethod
     def from_handlandmarker(cls, hand_landmarks: HandLandmarkerResult, label, label_id):
@@ -123,6 +134,15 @@ class DataSample:
             'label_id': self.label_id,
             'gestures': [gesture.__dict__ for gesture in self.gestures]
         }
+
+    def pushfront_gesture_from_landmarks(self, hand_landmarks: HandLandmarkerResult, allow_empty_frame: bool = True):
+        if len(hand_landmarks.hand_world_landmarks) == 0:
+            if not allow_empty_frame:
+                raise ValueError("Empty frame not allowed")
+            else:
+                self.gestures.insert(0, GestureData.from_list([0 for _ in range(NEURON_CHUNK)]))
+        else:
+            self.gestures.insert(0, GestureData.from_landmark_list(hand_landmarks.hand_world_landmarks[0]))
 
     def samples_to_1d_array(self) -> list[float]:
         raw_data = []
@@ -249,9 +269,11 @@ class DataSample:
 class TrainDataInfo:
     labels: list[str]
     label_map: dict[str, int]
+    memory_frame: int
 
-    def __init__(self, labels: list[str], label_map: dict[str, int] = None):
+    def __init__(self, labels: list[str], memory_frame: int, label_map: dict[str, int] = None):
         self.labels = labels
+        self.memory_frame = memory_frame
 
         if label_map is None:
             self.label_map = {label: i for i, label in enumerate(labels)}
@@ -264,31 +286,38 @@ class TrainDataInfo:
     def from_dict(cls, data: dict):
         return cls(
             labels=data['labels'],
-            label_map=data['label_map']
+            label_map=data['label_map'],
+            memory_frame=data['memory_frame']
         )
 
 @dataclass
 class TrainData:
     info: TrainDataInfo
-    samples: list[list[list[float]]]
+    samples: list[set[list[float]]]
     sample_count: int
 
-    def __init__(self, info: TrainDataInfo, samples: list[list[list[float]]] = None):
+    def __init__(self, info: TrainDataInfo, samples: list[set[list[float]]] = None):
         self.info = info
 
+        self.test = set()
         if samples is not None:
             self.samples = samples
         else:
             self.samples = []
             while len(self.samples) < len(info.labels):
-                self.samples.append([])
+                self.samples.append(set())
         self.sample_count = sum([len(label_samples) for label_samples in self.samples])
 
     @classmethod
     def from_json(cls, json_data):
+        samples = json_data['samples']
+        for i in range(len(samples)):
+            for k in range(len(samples[i])):
+                samples[i][k] = tuple(samples[i][k])
+            samples[i] = set(samples[i])
         return cls(
             info=TrainDataInfo.from_dict(json_data['info']),
-            samples=json_data['samples']
+            samples=samples
         )
 
     @classmethod
@@ -308,6 +337,8 @@ class TrainData:
         return cls.from_cbor(data)
 
     def to_json(self):
+        for i in range(len(self.samples)):
+            self.samples[i] = list(self.samples[i])
         return {
             'info': self.info.__dict__,
             'samples': self.samples
@@ -325,16 +356,22 @@ class TrainData:
             f.write(self.to_cbor())
 
     def add_data_sample(self, data_sample: DataSample, label: str):
-        self.samples[self.info.label_map[label]].append(data_sample.samples_to_1d_array())
+        # self.test.add(tuple(data_sample.samples_to_1d_array()))
+        self.samples[self.info.label_map[label]].add(tuple(data_sample.samples_to_1d_array()))
         self.sample_count += 1
+        pass
 
     def add_data_samples(self, data_samples: list[DataSample], label: str):
         for data_sample in data_samples:
+            # print(type(data_sample))
             self.add_data_sample(data_sample, label)
 
     def get_input_data(self) -> list[list[float]]:
         samples: list[list[float]] = []
         for label_sorted_samples in self.samples:
+            label_sorted_samples = list(label_sorted_samples)
+            for i in range(len(label_sorted_samples)):
+                label_sorted_samples[i] = list(label_sorted_samples[i])
             samples += label_sorted_samples
         return samples
 
