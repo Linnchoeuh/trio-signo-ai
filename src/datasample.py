@@ -102,6 +102,7 @@ class DataSample:
     label: str
     gestures: list[GestureData]
     label_id: int | None = None
+    # fps: int = 1
 
     @classmethod
     def from_json(cls, json_data, label_id: int = None):
@@ -112,6 +113,12 @@ class DataSample:
             label_id=label_id,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
+
+    @classmethod
+    def from_json_file(cls, file_path: str, label_id: int = None):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_json(data, label_id)
 
     @classmethod
     def from_handlandmarker(cls, hand_landmarks: HandLandmarkerResult, label, label_id):
@@ -262,9 +269,11 @@ class DataSample:
 class TrainDataInfo:
     labels: list[str]
     label_map: dict[str, int]
+    memory_frame: int
 
-    def __init__(self, labels: list[str], label_map: dict[str, int] = None):
+    def __init__(self, labels: list[str], memory_frame: int, label_map: dict[str, int] = None):
         self.labels = labels
+        self.memory_frame = memory_frame
 
         if label_map is None:
             self.label_map = {label: i for i, label in enumerate(labels)}
@@ -277,7 +286,8 @@ class TrainDataInfo:
     def from_dict(cls, data: dict):
         return cls(
             labels=data['labels'],
-            label_map=data['label_map']
+            label_map=data['label_map'],
+            memory_frame=data['memory_frame']
         )
 
 @dataclass
