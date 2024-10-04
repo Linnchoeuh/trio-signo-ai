@@ -9,7 +9,7 @@ from src.video_cropper import VideoCropper
 
 ESC = 27
 SPACE = 32
-B_KEY = 98
+TAB = 9
 FPS = 30
 
 keys_index = {'a' : 'a',
@@ -64,6 +64,7 @@ is_croping = False
 instructions = """Instructions:
 Space: Record
 Any key: Screenshot
+Tab: Edit
 Esc: Quit"""
 
 # Function used to create the insctructions that we'll dsplay on screen
@@ -110,6 +111,7 @@ while True:
         cv2.imshow("Video recorder", combined_frame)
 
         key = cv2.waitKey(1)
+        print(key)
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         # Ask for the label of the video, save it and save a trace in a json
@@ -137,8 +139,8 @@ while True:
                 out.release()
                 update_json(label_json_path, {"filename": file_name, "label": video_name})
 
-        #elif key == B_KEY:
-        #    is_croping = True
+        elif key == TAB:
+            is_croping = True
 
         # Quit
         elif key == ESC:
