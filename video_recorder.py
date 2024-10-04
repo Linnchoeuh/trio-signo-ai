@@ -9,7 +9,6 @@ from src.video_cropper import VideoCropper
 
 ESC = 27
 SPACE = 32
-A_KEY = 97
 B_KEY = 98
 FPS = 30
 
@@ -50,24 +49,7 @@ keys_index = {'a' : 'a',
         '9' : '9',
         '0' : '0'}
 
-save_dir_videos = 'datasets/source_videos'
-save_dir_screenshots = 'datasets/source_images/screenshots'
-videos_json_path = os.path.join(save_dir_videos, 'videos.json')
-screenshots_json_path = os.path.join(save_dir_screenshots, 'screenshots.json')
-
-if not os.path.exists(save_dir_videos):
-    os.makedirs(save_dir_videos)
-
-if not os.path.exists(save_dir_screenshots):
-    os.makedirs(save_dir_screenshots)
-
-if not os.path.exists(videos_json_path):
-    with open(videos_json_path, 'w') as f:
-        json.dump([], f)
-
-if not os.path.exists(screenshots_json_path):
-    with open(screenshots_json_path, 'w') as f:
-        json.dump([], f)
+save_folder = 'datasets/'
 
 record = cv2.VideoCapture(0)
 frame_width = int(record.get(3))
@@ -81,7 +63,7 @@ is_croping = False
 
 instructions = """Instructions:
 Space: Record
-A: Screenshot
+Any key: Screenshot
 Esc: Quit"""
 
 # Function used to create the insctructions that we'll dsplay on screen
@@ -95,7 +77,7 @@ def create_instruction_image():
 
     return instruction_image
 
-# Function used to give a name to screenshots or videos
+# Function used to give a name to videos
 def file_name_popup(file_type):
     root = tk.Tk()
     root.withdraw()
@@ -136,19 +118,28 @@ while True:
                 video_name = file_name_popup("the video")
                 if video_name:
                     file_name = video_name + "_" + current_time + ".avi"
-                    output_file = os.path.join(save_dir_videos, file_name)
+                    full_save_path = save_folder + video_name + '/temp'
+
+                    if not os.path.exists(full_save_path):
+                        os.makedirs(full_save_path)
+
+                    label_json_path = os.path.join(full_save_path, 'label.json')
+                
+                    if not os.path.exists(label_json_path):
+                        with open(label_json_path, 'w') as f:
+                            json.dump([], f)
+
+                    output_file = os.path.join(full_save_path, file_name)
                     out = cv2.VideoWriter(output_file, fourcc, FPS, (frame_width, frame_height))
                     is_recording = True
-                    print("Starting to record...")
             else:
                 is_recording = False
                 out.release()
-                print(f"Recording saved in {output_file}.")
-                update_json(videos_json_path, {"filename": output_file, "label": video_name})
-        
+                update_json(label_json_path, {"filename": file_name, "label": video_name})
+
         #elif key == B_KEY:
         #    is_croping = True
-        
+
         # Quit
         elif key == ESC:
             if not is_recording:
@@ -159,13 +150,23 @@ while True:
         # Take a screenshot, ask for the label and save a trace in a json
         for keys in keys_index.keys():
             if (key == ord(keys)):
-                print(keys_index[keys])
                 image_name = keys_index[keys]
+                full_save_path = save_folder + keys_index[keys] + '/temp'
                 file_name = image_name + "_" + current_time + ".png"
-                output_file = os.path.join(save_dir_screenshots, file_name)
+
+                if not os.path.exists(full_save_path):
+                    os.makedirs(full_save_path)
+
+                label_json_path = os.path.join(full_save_path, 'label.json')
+                
+                if not os.path.exists(label_json_path):
+                    with open(label_json_path, 'w') as f:
+                        json.dump([], f)
+
+                output_file = os.path.join(full_save_path, file_name)
                 cv2.imwrite(output_file, frame)
                 print(f"Screenshot saved in {output_file}.")
-                update_json(screenshots_json_path, {"filename": file_name, "label": image_name})
+                update_json(label_json_path, {"filename": file_name, "label": image_name})
 
     # First attempt at switching back and forth between video record and video crop
     else:
