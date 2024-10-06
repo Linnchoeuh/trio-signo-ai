@@ -111,7 +111,6 @@ while True:
         cv2.imshow("Video recorder", combined_frame)
 
         key = cv2.waitKey(1)
-        print(key)
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         # Ask for the label of the video, save it and save a trace in a json
