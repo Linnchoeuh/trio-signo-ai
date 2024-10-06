@@ -47,9 +47,21 @@ class VideoCropper:
 
     def update_start_label(self, value):
         self.start_slider.config(label=f"Start : {float(value):.2f} sec")
+        self.show_frame_at_time(float(value))
 
     def update_end_label(self, value):
         self.end_slider.config(label=f"End : {float(value):.2f} sec")
+        self.show_frame_at_time(float(value))
+
+    def show_frame_at_time(self, time):
+        """Display the frame at the specified time."""
+        if self.video_clip is not None:
+            frame = self.video_clip.get_frame(time)
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)  # Convert to BGR for OpenCV
+            frame = cv2.resize(frame, (600, 400))
+            img = Image.fromarray(frame)
+            self.imgtk = ImageTk.PhotoImage(image=img)  # Store the image as an instance attribute
+            self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
 
     def play_video(self):
         self.playing = True
@@ -62,9 +74,8 @@ class VideoCropper:
                     frame = cv2.resize(frame, (600, 400))
                     img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     img = Image.fromarray(img)
-                    imgtk = ImageTk.PhotoImage(image=img)
-                    self.canvas.create_image(0, 0, anchor=tk.NW, image=imgtk)
-                    self.canvas.image = imgtk
+                    self.imgtk = ImageTk.PhotoImage(image=img)  # Store the image as an instance attribute
+                    self.canvas.create_image(0, 0, anchor=tk.NW, image=self.imgtk)
                     self.root.after(33, update_frame)
                 else:
                     cap.release()
