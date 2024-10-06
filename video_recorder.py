@@ -126,7 +126,7 @@ while True:
                         os.makedirs(full_save_path)
 
                     label_json_path = os.path.join(full_save_path, 'label.json')
-                
+
                     if not os.path.exists(label_json_path):
                         with open(label_json_path, 'w') as f:
                             json.dump([], f)
