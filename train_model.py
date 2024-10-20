@@ -7,7 +7,6 @@ import json
 
 from src.datasample import *
 from src.model_class.sign_recognizer_v1 import *
-from src.model_class.sign_recognizer_v2 import *
 
 parser: argparse.ArgumentParser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
