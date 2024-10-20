@@ -102,15 +102,19 @@ class DataSample:
     label: str
     gestures: list[GestureData]
     label_id: int | None = None
-    # fps: int = 1
+    framerate: int = 30
 
     @classmethod
-    def from_json(cls, json_data, label_id: int = None):
+    def from_json(cls, json_data: dict, label_id: int = None):
         if label_id is None:
             label_id = json_data['label_id']
+        framerate = 30
+        if json_data.get("framerate") is not None:
+            framerate = json_data['framerate']
         return cls(
             label=json_data['label'],
             label_id=label_id,
+            framerate=framerate,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
 
@@ -134,6 +138,10 @@ class DataSample:
             'label_id': self.label_id,
             'gestures': [gesture.__dict__ for gesture in self.gestures]
         }
+
+    def to_json_file(self, file_path: str, indent: bool = False):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_json(), f, indent=indent)
 
     def pushfront_gesture_from_landmarks(self, hand_landmarks: HandLandmarkerResult, allow_empty_frame: bool = True):
         if len(hand_landmarks.hand_world_landmarks) == 0:
@@ -355,16 +363,18 @@ class TrainData:
         with open(file_path, 'wb') as f:
             f.write(self.to_cbor())
 
-    def add_data_sample(self, data_sample: DataSample, label: str):
-        # self.test.add(tuple(data_sample.samples_to_1d_array()))
+    def add_data_sample(self, data_sample: DataSample, label: str = None):
+        if label is None:
+            label = data_sample.label
+
         self.samples[self.info.label_map[label]].add(tuple(data_sample.samples_to_1d_array()))
         self.sample_count += 1
         pass
 
-    def add_data_samples(self, data_samples: list[DataSample], label: str):
+    def add_data_samples(self, data_samples: list[DataSample]):
         for data_sample in data_samples:
             # print(type(data_sample))
-            self.add_data_sample(data_sample, label)
+            self.add_data_sample(data_sample, data_sample.label)
 
     def get_input_data(self) -> list[list[float]]:
         samples: list[list[float]] = []
