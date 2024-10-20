@@ -30,7 +30,7 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.datasample import *
-from src.model_class.sign_recognizer_v2 import *
+from src.model_class.sign_recognizer_v1 import *
 
 HAND_TRACKING_MODEL_PATH = "models/hand_tracking/google/hand_landmarker.task"
 

@@ -24,7 +24,7 @@ from run_model import load_hand_landmarker
 
 def load_alphabet_recognizer_model() -> SignRecognizerV1:
     model: SignRecognizerV1 = SignRecognizerV1()
-    model.loadModel("model.pth")
+    model.loadModel("models/sign_recognition/alphabet_recognizer_.pth")
     return model
 
 def main():

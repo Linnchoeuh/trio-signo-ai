@@ -4,27 +4,33 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 import json
+import time
+import os
 from dataclasses import dataclass
-from src.datasample import *
 
 from mediapipe.tasks.python.components.containers.landmark import Landmark
+
+from src.datasample import *
 
 @dataclass
 class ModelInfoV1:
     labels: list[str]
-    model_version: str = "v2"
+    memory_frame: int
+    model_version: str = "v1"
     model_name: str = ""
 
-def landmarks_to_list(landmarks: list[Landmark]):
-    return [[landmark.x, landmark.y, landmark.z] for landmark in landmarks]
-
-def LandmarksTo1DArray(landmarks: list[Landmark]):
-    return [item for sublist in landmarks_to_list(landmarks) for item in sublist]
+def get_label_name_file(model_name: str) -> str:
+    if model_name.endswith('.pth'):
+        model_name = model_name[:-4]
+    model_name += '_labels.json'
+    return model_name
 
 class SignRecognizerV1(nn.Module):
-    def __init__(self, output_size: int):
+    def __init__(self, output_size: int, nb_of_memory_frame: int):
         super(SignRecognizerV1, self).__init__()
-        self.fc1 = nn.Linear(63, 128)
+        self.input_neurons = nb_of_memory_frame * NEURON_CHUNK
+        print(self.input_neurons)
+        self.fc1 = nn.Linear(self.input_neurons, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, output_size)
 
@@ -38,6 +44,10 @@ class SignRecognizerV1(nn.Module):
         self.load_state_dict(torch.load(model_path))
 
     def use(self, input: list[float]):
+        # for i in range(len(input)):
+        #     input[i] = round(input[i], 3)
+        while len(input) < self.input_neurons:
+            input.append(0)
         self.eval()
         input_tensor = torch.tensor(input, dtype=torch.float32)
         with torch.no_grad():
@@ -45,7 +55,7 @@ class SignRecognizerV1(nn.Module):
         probabilities = F.softmax(logits, dim=0)
         return torch.argmax(probabilities, dim=0).item()
 
-    def trainModel(self, train_data: TrainData, model_name: str = None, num_epochs: int = 20) -> str:
+    def trainModel(self, train_data: TrainData, num_epochs: int = 20) -> str:
         class CustomDataset(Dataset):
             def __init__(self, input: list[list[float]], output: list[int], model_input_neuron: int):
                 if len(input) != len(output):
@@ -85,10 +95,29 @@ class SignRecognizerV1(nn.Module):
             # print(outputs)
             print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
 
-        if model_name is None:
-            model_name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}.pth"
-        elif not model_name.endswith(".pth"):
-            model_name += ".pth"
 
-        torch.save(self.state_dict(), model_name)
-        return model_name
+    def saveModel(self, train_data: TrainData, model_name: str = None):
+        if model_name is None:
+            model_name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
+        else:
+            if model_name.endswith(".pth"):
+                model_name = model_name[:-4]
+            if model_name.endswith(".json"):
+                model_name = model_name[:-5]
+
+        os.makedirs(model_name, exist_ok=True)
+        full_name = f"{model_name}/{model_name}"
+
+        torch.save(self.state_dict(), full_name + ".pth")
+        with open(get_label_name_file(full_name), 'w', encoding="utf-8") as f:
+            json.dump(ModelInfoV1(train_data.info.labels, train_data.info.memory_frame, model_name=model_name).__dict__, f, ensure_ascii=False, indent=4)
+
+    # def add_frame(self, hand_landmark: HandLandmarkerResult):
+    #     try:
+    #         sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
+    #         self.input_data += sample.samples_to_1d_array()
+    #     except:
+    #         for i in range(NEURON_CHUNK):
+    #             self.input_data.append(0)
+    #     while len(self.input_data) > self.input_neurons:
+    #         self.input_data.pop(0)
