@@ -50,6 +50,7 @@ keys_index = {'a' : 'a',
         '0' : '0'}
 
 save_folder = 'datasets/'
+_label = "j"
 
 record = cv2.VideoCapture(0)
 frame_width = int(record.get(3))
@@ -117,6 +118,7 @@ while True:
         if key == SPACE:
             if not is_recording:
                 video_name = file_name_popup("the video")
+                # video_name = _label
                 if video_name:
                     file_name = video_name + "_" + current_time + ".avi"
                     full_save_path = save_folder + video_name + '/temp'
@@ -159,7 +161,7 @@ while True:
                     os.makedirs(full_save_path)
 
                 label_json_path = os.path.join(full_save_path, 'label.json')
-                
+
                 if not os.path.exists(label_json_path):
                     with open(label_json_path, 'w') as f:
                         json.dump([], f)

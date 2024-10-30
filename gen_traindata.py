@@ -151,7 +151,42 @@ def create_subset(sample: DataSample, nb_frame: int, null_set: str = None) -> li
                 sub_sample.append(tmp)
 
     else:
-        pass
+        for samp in [sample, mirror_sample]:
+            tmp: DataSample = copy.deepcopy(samp)
+            # Create a rotated variation
+            tmp.rotate_sample(ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+                              ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+                              rand_fix_interval(math.pi / 10))
+            tmp.deform_hand(1 + rand_fix_interval(0.2),
+                            1 + rand_fix_interval(0.2),
+                            1 + rand_fix_interval(0.2))
+            tmp.translate_hand(rand_fix_interval(0.01),
+                                 rand_fix_interval(0.01),
+                                 rand_fix_interval(0.01))
+            sub_sample.append(tmp)
+
+        # Keep in memory the size of the previously generated sub_sample
+        sub_sample_count: int = len(sub_sample)
+        # print(sub_sample_count)
+        sub_sample_cpy = copy.deepcopy(sub_sample)
+
+
+        # Create varations with with randomized filled frames
+        for i in range(sub_sample_count):
+            tmp: DataSample = copy.deepcopy(sub_sample[i])
+            tmp.reframe(random.randint(2, nb_frame))
+            sub_sample.append(tmp)
+
+        # Create variations with missing frame to make the model more robust
+        for i in range(sub_sample_count):
+            tmp: DataSample = copy.deepcopy(sub_sample[i])
+            tmp.reframe(random.randint(2, nb_frame))
+            sub_sample.append(tmp)
+
+
+        # Add randomization to all subsample created so far
+        for i in range(len(sub_sample)):
+            sub_sample[i].randomize_points()
 
     return list(sub_sample)
 
@@ -235,20 +270,25 @@ for label_id in range(len(dataset_labels)):
     dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
     label_total_samples = len(dataset_samples)
     for dataset_sample in dataset_samples:
-        with open(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}", "r", encoding="utf-8") as f:
-            data_sample: DataSample = DataSample.from_json(json.load(f), label_id=label_id)
-        data_sample.label = dataset_labels[label_id] # Ensure the label is correct
-        train_data.add_data_sample(data_sample)
-        subset = 0
-        while subset < total_subsets:
+        try:
+            with open(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}", "r", encoding="utf-8") as f:
+                data_sample: DataSample = DataSample.from_json(json.load(f), label_id=label_id)
+            if len(data_sample.gestures) > nb_frame: # Ensure the sample is not too long for the target memeory frame
+                data_sample.reframe(nb_frame)
+            data_sample.label = dataset_labels[label_id] # Ensure the label is correct
+            train_data.add_data_sample(data_sample)
+            subset = 0
+            while subset < total_subsets:
+                print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
+                # create_subset(data)
+                train_data.add_data_samples(create_subset(data_sample, nb_frame))
+                completed_cycle += 1
+                subset += 1
             print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-            # create_subset(data)
-            train_data.add_data_samples(create_subset(data_sample, nb_frame))
-            completed_cycle += 1
-            subset += 1
-        print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
-        treated_sample += 1
+            treated_sample += 1
+        except Exception as e:
+            print(f"\nError: {dataset_sample} is not a valid json file. {e}")
     print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
