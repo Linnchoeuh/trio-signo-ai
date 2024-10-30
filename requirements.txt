@@ -7,3 +7,6 @@ torch
 pillow
 flask-cors
 cbor2
+
+# Video recorder
+moviepy

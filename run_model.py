@@ -146,6 +146,8 @@ if __name__ == '__main__':
     handtrack_times = []
     sign_rec_times = []
     frame_history: DataSample = DataSample("", [])
+    prev_sign: int = -1
+    prev_display: int = -1
 
     while cap.isOpened():
         success, image = cap.read()
@@ -179,8 +181,12 @@ if __name__ == '__main__':
         image = draw_land_marks(image, hand_landmarks)
 
         text = "undefined"
+
+        if prev_sign != recognized_sign:
+            prev_display = prev_sign
+            prev_sign = recognized_sign
         if recognized_sign != -1:
-            text = model_info.labels[recognized_sign]
+            text = f"{model_info.labels[recognized_sign]} prev({model_info.labels[prev_display]})"
         cv2.putText(image, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
         cv2.putText(image, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         print(f"\r\033[KTrack time: {(handtrack_time * 1000):.3f}ms Recognition time: {(sign_rec_time * 1000):.3f}ms Output: {text}", end=" ")
