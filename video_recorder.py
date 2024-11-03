@@ -114,9 +114,9 @@ while True:
 
         for keys in keys_index.keys():
             if key == ord(keys):
-                image_name = keys_index[keys]
-                full_save_path = save_folder + keys_index[keys] + '/temp'
-                file_name = image_name + "_" + current_time + ".png"
+                image_label = keys_index[keys]
+                full_save_path = save_folder + image_label + '/temp'
+                file_name = image_label + "_" + current_time + ".png"
 
                 if not os.path.exists(full_save_path):
                     os.makedirs(full_save_path)
@@ -128,7 +128,12 @@ while True:
 
                 output_file = os.path.join(full_save_path, file_name)
                 cv2.imwrite(output_file, frame)
-                update_json(label_json_path, {"filename": file_name, "label": image_name})
+                update_json(label_json_path, {"filename": file_name, "label": image_label})
+
+                result, _ = track_hand(frame, handland_marker)
+                image_sample = DataSample(image_label, [])
+                image_sample.pushfront_gesture_from_landmarks(result)
+                image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
 
     else:
         root = tk.Tk()
