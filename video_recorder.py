@@ -1,14 +1,14 @@
 import os
 import cv2
 import json
+import argparse
 import numpy as np
 import tkinter as tk
 from datetime import datetime
-from tkinter import simpledialog
+from src.datasample import DataSample
 from src.video_cropper import VideoCropper
 from mediapipe.tasks.python.vision.hand_landmarker import *
 from run_model import load_hand_landmarker, track_hand, draw_land_marks
-from src.datasample import DataSample
 
 ESC = 27
 SPACE = 32
@@ -38,6 +38,11 @@ Any key: Screenshot
 Tab: Edit
 Esc: Quit"""
 
+parser = argparse.ArgumentParser(description="Video recording with hand detection.")
+parser.add_argument("label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
+args = parser.parse_args()
+video_label = args.label
+
 def create_instruction_image():
     instruction_image = np.zeros((frame_height, 300, 3), dtype=np.uint8)
     y0, dy = 50, 30
@@ -45,12 +50,6 @@ def create_instruction_image():
         y = y0 + i * dy
         cv2.putText(instruction_image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
     return instruction_image
-
-def file_name_popup(file_type):
-    root = tk.Tk()
-    root.withdraw()
-    file_name = simpledialog.askstring("File name", f"Enter file name for {file_type}:")
-    return file_name
 
 def update_json(json_path, file_info):
     with open(json_path, 'r') as f:
@@ -83,28 +82,26 @@ while True:
 
         if key == SPACE:
             if not is_recording:
-                video_name = file_name_popup("the video")
-                if video_name:
-                    file_name = video_name + "_" + current_time + ".avi"
-                    full_save_path = save_folder + video_name + '/temp'
-                    data_sample = DataSample(video_name, [])
+                file_name = video_label + "_" + current_time + ".avi"
+                full_save_path = save_folder + video_label + '/temp'
+                data_sample = DataSample(video_label, [])
 
-                    if not os.path.exists(full_save_path):
-                        os.makedirs(full_save_path)
+                if not os.path.exists(full_save_path):
+                    os.makedirs(full_save_path)
 
-                    label_json_path = os.path.join(full_save_path, 'label.json')
-                    if not os.path.exists(label_json_path):
-                        with open(label_json_path, 'w') as f:
-                            json.dump([], f)
+                label_json_path = os.path.join(full_save_path, 'label.json')
+                if not os.path.exists(label_json_path):
+                    with open(label_json_path, 'w') as f:
+                        json.dump([], f)
 
-                    output_file = os.path.join(full_save_path, file_name)
-                    out = cv2.VideoWriter(output_file, fourcc, FPS, (frame_width, frame_height))
-                    is_recording = True
+                output_file = os.path.join(full_save_path, file_name)
+                out = cv2.VideoWriter(output_file, fourcc, FPS, (frame_width, frame_height))
+                is_recording = True
             else:
                 is_recording = False
                 out.release()
-                data_sample.to_json_file(f"{save_folder}{video_name}/{file_name}.json")
-                update_json(label_json_path, {"filename": file_name, "label": video_name})
+                data_sample.to_json_file(f"{save_folder}{video_label}/{file_name}.json")
+                update_json(label_json_path, {"filename": file_name, "label": video_label})
 
         elif key == TAB:
             is_croping = True
