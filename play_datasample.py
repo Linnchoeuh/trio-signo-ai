@@ -9,7 +9,7 @@ import time
 
 
 BASE_FPS = 15 # Do not change this value
-FPS = 60
+FPS = 30
 WIDTH, HEIGHT = 500, 500
 scale = 10000
 object_position = [WIDTH//2, HEIGHT//2]

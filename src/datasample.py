@@ -103,18 +103,20 @@ class DataSample:
     gestures: list[GestureData]
     label_id: int | None = None
     framerate: int = 30
+    mirrorable: bool = True
 
     @classmethod
     def from_json(cls, json_data: dict, label_id: int = None):
         if label_id is None:
-            label_id = json_data['label_id']
+            label_id = json_data.get("label_id", None)
         framerate = 30
-        if json_data.get("framerate") is not None:
-            framerate = json_data['framerate']
+        framerate: bool = json_data.get("framerate", 30)
+        mirrorable: bool = json_data.get("mirrorable", True)
         return cls(
             label=json_data['label'],
             label_id=label_id,
             framerate=framerate,
+            mirrorable=mirrorable,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
 
@@ -135,7 +137,8 @@ class DataSample:
     def to_json(self):
         return {
             'label': self.label,
-            'label_id': self.label_id,
+            'framerate': self.framerate,
+            'mirrorable': self.mirrorable,
             'gestures': [gesture.__dict__ for gesture in self.gestures]
         }
 
