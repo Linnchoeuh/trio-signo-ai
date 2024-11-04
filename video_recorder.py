@@ -5,7 +5,7 @@ import argparse
 import numpy as np
 import tkinter as tk
 from datetime import datetime
-from src.datasample import DataSample
+from src.datasample import DataSample, DataSample2
 from src.video_cropper import VideoCropper
 from mediapipe.tasks.python.vision.hand_landmarker import *
 from run_model import load_hand_landmarker, track_hand, draw_land_marks
@@ -68,7 +68,7 @@ while True:
         if is_recording:
             out.write(frame)
             result, _ = track_hand(frame, handland_marker)
-            data_sample.pushfront_gesture_from_landmarks(result)
+            data_sample.insert_gesture_from_landmarks(0, result)
             frame = draw_land_marks(frame, result)
             cv2.putText(frame, "Recording...", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
@@ -84,7 +84,7 @@ while True:
             if not is_recording:
                 file_name = video_label + "_" + current_time + ".avi"
                 full_save_path = save_folder + video_label + '/temp'
-                data_sample = DataSample(video_label, [])
+                data_sample = DataSample2(video_label, [])
 
                 if not os.path.exists(full_save_path):
                     os.makedirs(full_save_path)
