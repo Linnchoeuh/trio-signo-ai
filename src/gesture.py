@@ -174,7 +174,7 @@ HANDS_POSITION = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_
 
 HANDS_FULL = ActiveGestures.buildWithPreset([LEFT_HAND_FULL, RIGHT_HAND_FULL])
 
-ACTIVATED_GESTURES_PRESETS = {
+ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
     'left_hand_points': (
         LEFT_HAND_POINTS,
         "Will only provide information about left hand finger position or hand rotation."
