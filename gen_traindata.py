@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from src.model_class.sign_recognizer_v1 import *
 
 from src.datasample import *
+from src.gesture import *
 
 DATASETS_DIR = "datasets"
 ROT_ANGLE = math.pi / 4
@@ -20,6 +21,10 @@ def rand_fix_interval(gap: float) -> float:
     return rand_interval(-gap, gap)
 
 def print_help():
+    a_param_description: str = ""
+    for key, value in ACTIVATED_GESTURES_PRESETS.items():
+        a_param_description += f"\n\t\t{key}: {value[1]}"
+
     print(f"""USAGE:
 \t{sys.argv[0]} [OPTIONS] [DATASET1 DATASET2 ...]
 OPTIONS:
@@ -28,6 +33,8 @@ OPTIONS:
 \t-n: Name of the dataset
 \t-f: Number of frame in the past in the training set
 \t-x: NULL dataset: Define the null labeled output for the model further training data.
+\t-a: Active point: Let you define which point to activate in the training dataset
+\t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
 """)
 
@@ -211,6 +218,7 @@ total_subsets: int = 1
 dataset_name: str = None
 nb_frame = 15
 null_set: str = None
+active_gesture: ActiveGestures = None
 while i < len(sys.argv):
     args = sys.argv[i]
     if args.startswith("-"):
@@ -231,7 +239,12 @@ while i < len(sys.argv):
                 i += 1
                 null_set = sys.argv[i]
                 dataset_labels.append(null_set)
-
+            case "a":
+                i += 1
+                active_gesture = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
+                if active_gesture is None:
+                    print("Invalid active gesture preset")
+                    exit(1)
     else:
         dataset_labels.append(args)
     i += 1
