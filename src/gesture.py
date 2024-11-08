@@ -9,9 +9,8 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.rot_3d import *
+from src.tools import *
 
-def random_float_value(range: float) -> float:
-    return random.uniform(-range, range)
 
 def is_valid_field(field_name: str, valid_fields: list[str] | None) -> bool:
     return valid_fields is None or field_name in valid_fields
@@ -19,6 +18,7 @@ def is_valid_field(field_name: str, valid_fields: list[str] | None) -> bool:
 T = TypeVar('T')
 @dataclass
 class Gestures(Generic[T]):
+    # NEVER CHANGE THE POINTS ORDER OR IT WILL BACKWARD COMPATIBILITY
 
     # Left hand data
     l_hand_position: T = None
@@ -213,9 +213,13 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
     )
 }
 
+CACHE_HANDS_POINTS: list[str] = HANDS_POINTS.getActiveFields()
+CACHE_HANDS_POSITION: list[str] = HANDS_POSITION.getActiveFields()
+
 
 @dataclass
 class DataGestures(Gestures[list[float, float, float] | None]):
+
     @classmethod
     def buildFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult) -> "DataGestures":
         tmp = DataGestures()
@@ -298,6 +302,49 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 self.l_pinky_tip=[handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
         return self
 
+    def setPointToZero(self, point: str) -> "DataGestures":
+        setattr(self, point, [0, 0, 0])
+        return self
+
+    def setPointToRandom(self, point: str) -> "DataGestures":
+        if point in CACHE_HANDS_POSITION:
+            setattr(self, point, [rand_fix_interval(1), rand_fix_interval(1), rand_fix_interval(1)])
+        elif point in CACHE_HANDS_POINTS:
+            # 0.15 is the max value I can find on hand landmark
+            setattr(self, point, [rand_fix_interval(0.15), rand_fix_interval(0.15), rand_fix_interval(0.15)])
+        return self
+
+    def setAllPointsToZero(self) -> "DataGestures":
+        for field in fields(self):
+            self.setPointToZero(field.name)
+        return self
+
+    def setAllPointsToRandom(self) -> "DataGestures":
+        for field in fields(self):
+            self.setPointToRandom(field.name)
+        return self
+
+    def setNonePointsToZero(self) -> "DataGestures":
+        for field in fields(self):
+            if getattr(self, field.name) is None:
+                self.setPointToZero(field.name)
+        return self
+
+    def setNonePointsToRandom(self) -> "DataGestures":
+        for field in fields(self):
+            if getattr(self, field.name) is None:
+                self.setPointToRandom(field.name)
+        return self
+
+    def setNonePointsRandomlyToRandomOrZero(self, proba: float = 0.1) -> "DataGestures":
+        for field in fields(self):
+            if getattr(self, field.name) is None:
+                if random.random() < proba:
+                    self.setPointToZero(field.name)
+                else:
+                    self.setPointToRandom(field.name)
+        return self
+
     def get1DArray(self, active_gestures: ActiveGestures | None = None) -> list[float]:
         data = []
         for field in fields(self):
@@ -309,15 +356,24 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 data.extend(attr)
         return data
 
-    def randomize(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
+    def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
+        """Will randomize the gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.
+
+        Args:
+            range (float, optional): Random value will be between -range and range. Defaults to 0.005.
+            valid_fields (list[str], optional): Let you pick which fields should be randomized. Defaults to None (All point affected).
+
+        Returns:
+            DataSample2: Return this class instance for chaining
+        """
         for field in fields(self):
             if not is_valid_field(field.name, valid_fields):
                 continue
             field_value: list[float] = getattr(self, field.name)
             if field_value is not None:
-                field_value[0] += random_float_value(range)
-                field_value[1] += random_float_value(range)
-                field_value[2] += random_float_value(range)
+                field_value[0] += rand_fix_interval(range)
+                field_value[1] += rand_fix_interval(range)
+                field_value[2] += rand_fix_interval(range)
                 setattr(self, field.name, field_value)
         return self
 
