@@ -8,17 +8,14 @@ from collections import deque
 
 from dataclasses import dataclass
 from src.model_class.sign_recognizer_v1 import *
+from src.gen_traindata.gen_static_data import *
+from src.gen_traindata.gen_dynamic_data import *
 
 from src.datasample import *
 from src.gesture import *
 
 DATASETS_DIR = "datasets"
-ROT_ANGLE = math.pi / 4
-def rand_interval(min: float, max: float) -> float:
-    return random.random() * (max - min) + min
 
-def rand_fix_interval(gap: float) -> float:
-    return rand_interval(-gap, gap)
 
 def print_help():
     a_param_description: str = ""
@@ -54,156 +51,38 @@ def print_progression(dataset_labels: list[str], label_id: int,
         f"[Label ({dataset_labels[label_id]}): {label_id}/{len(dataset_labels)}] "
         f"[Datasample: {treated_sample}/{label_total_samples}] "
         f"[Subset Generation: {subset}/{total_subset}] "
-        f"[Sample created: {created_sample}] "
+        f"[Sample generated: {created_sample}] "
         f"Remain time: {remaining_time_str} {completed_cycle}/{total_cycle}", end="")
 
-def create_array(size: int, value: float = 0) -> list[float]:
-    return
 
-def rand_gesture() -> GestureData:
-    return GestureData.from_list([rand_fix_interval(0.15) for _ in range(NEURON_CHUNK)]) # 0.15 is the max value I can find on hand landmark
+def create_subset(sample: DataSample2, nb_frame: int, null_set: str = None, active_points: ActiveGestures = None) -> list[DataSample2]:
+    sub_sample: deque[DataSample2] = deque()
 
-def create_subset(sample: DataSample, nb_frame: int, null_set: str = None) -> list[DataSample]:
-    sub_sample: deque[DataSample] = deque()
+    initial_samples: list[DataSample2] = [sample]
+    if sample.mirrorable:
+        mirror_sample: DataSample2 = copy.deepcopy(sample)
+        mirror_sample.mirror_sample(x=True, y=False, z=False)
+        initial_samples.append(mirror_sample)
 
-    mirror_sample = copy.deepcopy(sample)
-    if mirror_sample.mirrorable:
-        mirror_sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
+    for samp in initial_samples:
+        # Be careful those function randomize undefined (set to None) points
+        if len(sample.gestures) == 1:
+            sub_sample.extend(gen_static_data(samp, nb_frame, null_set, active_points))
+        else:
+            sub_sample.extend(gen_dynamic_data(samp, nb_frame, null_set, active_points))
 
-    if len(sample.gestures) == 1:
-        for samp in [sample, mirror_sample]:
-            tmp: DataSample = copy.deepcopy(samp)
-            # Create a rotated variation
-            tmp.rotate_sample(ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
-                              ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
-                              rand_fix_interval(math.pi / 10))
-            tmp.deform_hand(1 + rand_fix_interval(0.2),
-                            1 + rand_fix_interval(0.2),
-                            1 + rand_fix_interval(0.2))
-            tmp.translate_hand(rand_fix_interval(0.01),
-                                 rand_fix_interval(0.01),
-                                 rand_fix_interval(0.01))
-            sub_sample.append(tmp)
-
-            # sub_sample.append(tmp)
-            # # Create a deformed variation
-            # sub_sample.append(copy.deepcopy(tmp).deform_hand(1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3)))
-            # # Create a translated variation
-            # sub_sample.append(copy.deepcopy(tmp).translate_hand(rand_fix_interval(0.01), rand_fix_interval(0.01), rand_fix_interval(0.01)))
-
-
-            # sub_sample.append(tmp)
-            # # Create a deformed variation
-            # sub_sample.append(tmp)
-            # sub_sample[-1].deform_hand(1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3), 1 + rand_fix_interval(0.3))
-            # # Create a translated variation
-            # sub_sample.append(tmp)
-            # sub_sample[-1].translate_hand(rand_fix_interval(0.01), rand_fix_interval(0.01), rand_fix_interval(0.01))
-
-        # Keep in memory the size of the previously generated sub_sample
-        sub_sample_count: int = len(sub_sample)
-        # print(sub_sample_count)
-        sub_sample_cpy = copy.deepcopy(sub_sample)
-
-
-        # Create varations with with randomized filled frames
-        for i in range(sub_sample_count):
-            tmp: DataSample = copy.deepcopy(sub_sample[i])
-            while len(tmp.gestures) < nb_frame:
-                tmp.gestures.append(rand_gesture())
-            sub_sample.append(tmp)
-
-
-        # Add randomization to all subsample created so far
-        for i in range(len(sub_sample)):
-            sub_sample[i].randomize_points()
-
-
-        # Generate coherent image succession for each sub_sample
-        for i in range(sub_sample_count):
-
-            tmp: DataSample = copy.deepcopy(sub_sample[i])
-            k = len(tmp.gestures)
-            invalid_frame: list[DataSample] = []
-            # Generate coherent image succession for each sub_sample
-            while k < nb_frame * 1.5:
-                tmp.gestures.insert(0, copy.deepcopy(sub_sample_cpy[i]).randomize_points().gestures[0])
-                while len(tmp.gestures) > nb_frame:
-                    tmp.gestures.pop(-1)
-                    # print(len(sub_sample_cpy2[i].gestures))
-                if len(tmp.gestures) == nb_frame and null_set is not None:
-                    invalid_frame.append(copy.deepcopy(tmp))
-                sub_sample.append(tmp)
-                k += 1
-
-            # Generate coherent image succession for each sub_sample with hole to make the model more robust
-            tmp = copy.deepcopy(sub_sample[i])
-            k = len(tmp.gestures)
-            while k < nb_frame:
-                if random.randint(0, nb_frame // 3) == 0:
-                    if random.randint(0, 1) == 0:
-                        tmp.gestures.insert(0, GestureData.from_list([rand_fix_interval(0.15) for _ in range(NEURON_CHUNK)]))
-                    else:
-                        tmp.gestures.insert(0, GestureData.from_list([0 for _ in range(NEURON_CHUNK)]))
-                else:
-                    tmp.gestures.insert(0, copy.deepcopy(sub_sample_cpy[i]).randomize_points().gestures[0])
-                sub_sample.append(tmp)
-                k += 1
-
-            # If null_set is defined, add invalid case to the dataset so the models understand that for static gesture, only the first frame matter.
-            for invalid in invalid_frame:
-                tmp: DataSample = copy.deepcopy(invalid)
-                tmp.label = null_set
-                tmp.gestures.append(rand_gesture())
-                tmp.gestures.pop(0)
-                sub_sample.append(tmp)
-
-    else:
-        for samp in [sample, mirror_sample]:
-            tmp: DataSample = copy.deepcopy(samp)
-            # Create a rotated variation
-            tmp.rotate_sample(ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
-                              ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
-                              rand_fix_interval(math.pi / 10))
-            tmp.deform_hand(1 + rand_fix_interval(0.2),
-                            1 + rand_fix_interval(0.2),
-                            1 + rand_fix_interval(0.2))
-            tmp.translate_hand(rand_fix_interval(0.01),
-                                 rand_fix_interval(0.01),
-                                 rand_fix_interval(0.01))
-            sub_sample.append(tmp)
-
-        # Keep in memory the size of the previously generated sub_sample
-        sub_sample_count: int = len(sub_sample)
-        # print(sub_sample_count)
-        sub_sample_cpy = copy.deepcopy(sub_sample)
-
-
-        # Create varations with with randomized filled frames
-        for i in range(sub_sample_count):
-            tmp: DataSample = copy.deepcopy(sub_sample[i])
-            tmp.reframe(random.randint(2, nb_frame))
-            sub_sample.append(tmp)
-
-        # Create variations with missing frame to make the model more robust
-        for i in range(sub_sample_count):
-            tmp: DataSample = copy.deepcopy(sub_sample[i])
-            tmp.reframe(random.randint(2, nb_frame))
-            sub_sample.append(tmp)
-
-
-        # Add randomization to all subsample created so far
-        for i in range(len(sub_sample)):
-            sub_sample[i].randomize_points()
-
+    # Randomize all point that are not defined
+    for samp in sub_sample:
+        samp.setNonePointsRandomlyToRandomOrZero()
     return list(sub_sample)
 
-def summary_checker(null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str):
+def summary_checker(null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, active_gesture: ActiveGestures = None):
     print(f"Dataset name: {dataset_name}")
     print(f"Null label: {null_label}")
     print(f"Labels: {labels}")
     print(f"Total subsets: {total_subsets}")
     print(f"Number of frame: {nb_frame}")
+    print(f"Active gesture: {active_gesture}")
     print(f"Output file: {file_name}")
     answer = None
     while answer != "y":
@@ -221,6 +100,7 @@ null_set: str = None
 active_gesture: ActiveGestures = None
 while i < len(sys.argv):
     args = sys.argv[i]
+    # print(args)
     if args.startswith("-"):
         match args[1]:
             case "h":
@@ -241,10 +121,11 @@ while i < len(sys.argv):
                 dataset_labels.append(null_set)
             case "a":
                 i += 1
-                active_gesture = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
-                if active_gesture is None:
+                tmp: dict[str, ActiveGestures] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
+                if tmp is None:
                     print("Invalid active gesture preset")
                     exit(1)
+                active_gesture = tmp[0]
     else:
         dataset_labels.append(args)
     i += 1
@@ -267,10 +148,9 @@ if dataset_name is None:
     formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
     dataset_name = f"trainset_{formatted_date}"
 
-summary_checker(null_set, dataset_labels, total_subsets, nb_frame, dataset_name)
+summary_checker(null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
 
-
-train_data: TrainData = TrainData(TrainDataInfo(dataset_labels, nb_frame))
+train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
 
 start_time = time.time()
 total_cycle = 0
@@ -279,14 +159,14 @@ for label_id in range(len(dataset_labels)):
     total_cycle += len(dataset_samples) * total_subsets
 completed_cycle = 0
 
+subset: int = 0
 for label_id in range(len(dataset_labels)):
     treated_sample = 0
     dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
     label_total_samples = len(dataset_samples)
     for dataset_sample in dataset_samples:
         try:
-            with open(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}", "r", encoding="utf-8") as f:
-                data_sample: DataSample = DataSample.from_json(json.load(f), label_id=label_id)
+            data_sample: DataSample2 = DataSample2.from_json_file(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}")
             if len(data_sample.gestures) > nb_frame: # Ensure the sample is not too long for the target memeory frame
                 data_sample.reframe(nb_frame)
             data_sample.label = dataset_labels[label_id] # Ensure the label is correct
@@ -294,7 +174,6 @@ for label_id in range(len(dataset_labels)):
             subset = 0
             while subset < total_subsets:
                 print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-                # create_subset(data)
                 train_data.add_data_samples(create_subset(data_sample, nb_frame))
                 completed_cycle += 1
                 subset += 1
@@ -306,9 +185,10 @@ for label_id in range(len(dataset_labels)):
     print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
+train_data.getNumberOfSamples()
 print()
 print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
-print("Total sample created: ", train_data.sample_count)
+print("Total unique sample created: ", train_data.getNumberOfSamples())
 print("Saving dataset...")
 train_data.to_cbor_file(f"./{dataset_name}.cbor")
-# train_data.to_json_file(f"./{dataset_name}.json")
+# train_data.to_json_file(f"./{dataset_name}.json", indent=4)
