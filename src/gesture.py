@@ -115,7 +115,7 @@ class ActiveGestures(Gestures[bool | None]):
                 active_fields.append(field.name)
         return active_fields
 
-LEFT_HAND_POINTS = ActiveGestures(
+LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
     l_wrist=True,
     l_thumb_cmc=True,
     l_thumb_mcp=True,
@@ -138,11 +138,11 @@ LEFT_HAND_POINTS = ActiveGestures(
     l_pinky_dip=True,
     l_pinky_tip=True,
 )
-LEFT_HAND_POSITION = ActiveGestures(
+LEFT_HAND_POSITION: ActiveGestures = ActiveGestures(
     l_hand_position=True
 )
-LEFT_HAND_FULL = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION])
-RIGHT_HAND_POINTS = ActiveGestures(
+LEFT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION])
+RIGHT_HAND_POINTS: ActiveGestures = ActiveGestures(
     r_wrist=True,
     r_thumb_cmc=True,
     r_thumb_mcp=True,
@@ -165,16 +165,22 @@ RIGHT_HAND_POINTS = ActiveGestures(
     r_pinky_dip=True,
     r_pinky_tip=True,
 )
-RIGHT_HAND_POSITION = ActiveGestures(
+RIGHT_HAND_POSITION: ActiveGestures = ActiveGestures(
     r_hand_position=True
 )
-RIGHT_HAND_FULL = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION])
-HANDS_POINTS = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, RIGHT_HAND_POINTS])
-HANDS_POSITION = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_POSITION])
+RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION])
+HANDS_POINTS: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, RIGHT_HAND_POINTS])
+HANDS_POSITION: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_POSITION])
 
-HANDS_FULL = ActiveGestures.buildWithPreset([LEFT_HAND_FULL, RIGHT_HAND_FULL])
+HANDS_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_FULL, RIGHT_HAND_FULL])
+ALL_GESTURES: ActiveGestures = ActiveGestures()
+ALL_GESTURES.activateAllGesture()
 
 ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
+    'all': (
+        ALL_GESTURES,
+        "Will include every available point."
+    ),
     'left_hand_points': (
         LEFT_HAND_POINTS,
         "Will only provide information about left hand finger position or hand rotation."
@@ -216,7 +222,6 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
 CACHE_HANDS_POINTS: list[str] = HANDS_POINTS.getActiveFields()
 CACHE_HANDS_POSITION: list[str] = HANDS_POSITION.getActiveFields()
 
-
 @dataclass
 class DataGestures(Gestures[list[float, float, float] | None]):
 
@@ -248,27 +253,27 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 self.r_hand_position = [handlandmark[0].x - 0.5, handlandmark[0].y - 0.5, handlandmark[0].z - 0.5]
 
                 # Adding position of each finger articulation
-                self.r_wrist=[handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z],
-                self.r_thumb_cmc=[handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z],
-                self.r_thumb_mcp=[handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z],
-                self.r_thumb_ip=[handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z],
-                self.r_thumb_tip=[handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z],
-                self.r_index_mcp=[handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z],
-                self.r_index_pip=[handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z],
-                self.r_index_dip=[handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z],
-                self.r_index_tip=[handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z],
-                self.r_middle_mcp=[handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z],
-                self.r_middle_pip=[handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z],
-                self.r_middle_dip=[handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z],
-                self.r_middle_tip=[handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z],
-                self.r_ring_mcp=[handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z],
-                self.r_ring_pip=[handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z],
-                self.r_ring_dip=[handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z],
-                self.r_ring_tip=[handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z],
-                self.r_pinky_mcp=[handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z],
-                self.r_pinky_pip=[handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z],
-                self.r_pinky_dip=[handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z],
-                self.r_pinky_tip=[handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                self.r_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
+                self.r_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
+                self.r_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
+                self.r_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
+                self.r_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
+                self.r_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
+                self.r_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
+                self.r_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
+                self.r_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
+                self.r_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
+                self.r_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
+                self.r_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
+                self.r_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
+                self.r_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
+                self.r_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
+                self.r_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
+                self.r_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
+                self.r_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
+                self.r_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
+                self.r_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
+                self.r_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
             else:
                 """
                 We use the wrist position to get the hand location
@@ -279,27 +284,27 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 self.l_hand_position = [handlandmark[0].x, handlandmark[0].y, handlandmark[0].z]
 
                 # Adding position of each finger articulation
-                self.l_wrist=[handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z],
-                self.l_thumb_cmc=[handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z],
-                self.l_thumb_mcp=[handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z],
-                self.l_thumb_ip=[handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z],
-                self.l_thumb_tip=[handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z],
-                self.l_index_mcp=[handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z],
-                self.l_index_pip=[handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z],
-                self.l_index_dip=[handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z],
-                self.l_index_tip=[handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z],
-                self.l_middle_mcp=[handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z],
-                self.l_middle_pip=[handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z],
-                self.l_middle_dip=[handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z],
-                self.l_middle_tip=[handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z],
-                self.l_ring_mcp=[handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z],
-                self.l_ring_pip=[handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z],
-                self.l_ring_dip=[handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z],
-                self.l_ring_tip=[handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z],
-                self.l_pinky_mcp=[handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z],
-                self.l_pinky_pip=[handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z],
-                self.l_pinky_dip=[handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z],
-                self.l_pinky_tip=[handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                self.l_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
+                self.l_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
+                self.l_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
+                self.l_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
+                self.l_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
+                self.l_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
+                self.l_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
+                self.l_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
+                self.l_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
+                self.l_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
+                self.l_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
+                self.l_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
+                self.l_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
+                self.l_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
+                self.l_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
+                self.l_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
+                self.l_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
+                self.l_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
+                self.l_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
+                self.l_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
+                self.l_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
         return self
 
     def setPointToZero(self, point: str) -> "DataGestures":
@@ -353,7 +358,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 if attr is None:
                     attr = [0, 0, 0]
                     # raise ValueError(f"Field {field.name} is None")
-                data.extend(attr)
+                data += attr
         return data
 
     def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -460,3 +465,24 @@ class DataGestures(Gestures[list[float, float, float] | None]):
             field_value[2] += z
             setattr(self, field.name, field_value)
         return self
+
+    # def translate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
+    #     if valid_fields:
+    #         for field_name in valid_fields:
+    #             field_value: list[float] = getattr(self, field_name)
+    #             if field_value is None:
+    #                 continue
+    #             field_value[0] += x
+    #             field_value[1] += y
+    #             field_value[2] += z
+    #             setattr(self, field_name, field_value)
+    #     else:
+    #         for field in fields(self):
+    #             field_value: list[float] = getattr(self, field.name)
+    #             if field_value is None:
+    #                 continue
+    #             field_value[0] += x
+    #             field_value[1] += y
+    #             field_value[2] += z
+    #             setattr(self, field.name, field_value)
+    #     return self

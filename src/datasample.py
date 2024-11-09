@@ -397,10 +397,10 @@ class TrainDataInfo:
     labels: list[str]
     label_map: dict[str, int]
     memory_frame: int
-    active_gestures: ActiveGestures = None
+    active_gestures: ActiveGestures
 
 
-    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = None, label_map: dict[str, int] = None):
+    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None):
         self.labels = labels
         self.memory_frame = memory_frame
         self.active_gestures = active_gestures
@@ -414,10 +414,14 @@ class TrainDataInfo:
 
     @classmethod
     def from_dict(cls, data: dict):
+        active_gest_dict: dict = data.get('active_gestures', None)
+        active_gest: ActiveGestures = None
+        if active_gest_dict is not None:
+            active_gest = ActiveGestures(**active_gest_dict)
         return cls(
             labels=data['labels'],
             memory_frame=data['memory_frame'],
-            active_gestures=data.get('active_gestures', None),
+            active_gestures=active_gest,
             label_map=data.get('label_map', None),
         )
 
@@ -554,7 +558,7 @@ class TrainData2:
             samples.append(set())
             for sample in dict_sample[sample_label_id]:
                 # Create the "tuple[int, tuple[float]]" part and add it to the appropriated "set"
-                samples[-1].add(len(samples[-1]), tuple(sample))
+                samples[-1].add((len(samples[-1]), tuple(sample)))
 
         return cls(
             info=TrainDataInfo.from_dict(json_data['info']),
@@ -585,6 +589,8 @@ class TrainData2:
 
     def to_dict(self) -> dict:
         self.sample_count = self.getNumberOfSamples()
+
+        count: int = 0
         samples: list[list[list[float]]] = []
         for i in range(len(self.samples)):
             # list[list[tuple[int, tuple[float]]]] replaces "set" by "list"
@@ -593,12 +599,13 @@ class TrainData2:
                 # list[list[list[float]]] replaces "tuple[int, tuple[float]]" by "list[float]"
                 # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
                 samples[i][k] = list(samples[i][k][1])
+                count += 1
         tmp: dict = self.__dict__
         tmp["info"] = self.info.to_dict()
         tmp["samples"] = samples
         return tmp
 
-    def to_json_file(self, file_path: str, indent: bool = 0):
+    def to_json_file(self, file_path: str, indent: int | str | None = 0):
         with open(file_path, 'w', encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=indent)
 
@@ -609,22 +616,19 @@ class TrainData2:
         with open(file_path, 'wb') as f:
             f.write(self.to_cbor())
 
-    def add_data_sample(self, data_sample: DataSample2, label: str = None):
-        if label is None:
-            label = data_sample.label
-        label_id = self.info.label_map[label]
+    def add_data_sample(self, data_sample: DataSample2):
+        label_id = self.info.label_map[data_sample.label]
 
         self.samples[label_id].add((
             len(self.samples[label_id]),
             tuple(data_sample.samples_to_1d_array(self.info.active_gestures))
         ))
         self.sample_count += 1
-        self.getNumberOfSamples()
 
     def add_data_samples(self, data_samples: list[DataSample2]):
         for data_sample in data_samples:
             # print(type(data_sample))
-            self.add_data_sample(data_sample, data_sample.label)
+            self.add_data_sample(data_sample)
 
     def get_input_data(self) -> list[list[float]]:
         """Transform the trainset data into a 1 dimension array

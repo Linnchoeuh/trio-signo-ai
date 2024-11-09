@@ -34,25 +34,6 @@ from src.model_class.sign_recognizer_v1 import *
 
 HAND_TRACKING_MODEL_PATH = "models/hand_tracking/google/hand_landmarker.task"
 
-def load_sign_recognizer(model_dir: str) -> tuple[SignRecognizerV1, ModelInfoV1]:
-    json_files = glob.glob(f"{model_dir}/*.json")
-    if len(json_files) == 0:
-        raise FileNotFoundError(f"No .json file found in {model_dir}")
-    pth_files = glob.glob(f"{model_dir}/*.pth")
-    if len(pth_files) == 0:
-        raise FileNotFoundError(f"No .pth file found in {model_dir}")
-    with open(json_files[0], "r") as f:
-        model_info: dict[str, list[str] | str] = json.load(f)
-    print(model_info)
-    match model_info["model_version"]:
-        case "v1":
-            tmp: ModelInfoV1 = ModelInfoV1(**model_info)
-            model = SignRecognizerV1(len(tmp.labels), tmp.memory_frame)
-            model.loadModel(pth_files[0])
-        case _:
-            raise ValueError(f"Model version {model_info['model_version']} not supported")
-    return model, tmp
-
 def load_hand_landmarker(num_hand: int) -> HandLandmarker:
     base_options = python.BaseOptions(model_asset_path=HAND_TRACKING_MODEL_PATH)
     options: HandLandmarkerOptions = vision.HandLandmarkerOptions(base_options=base_options,
@@ -131,7 +112,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     print("Loading sign recognition model...")
-    sign_rec_model, model_info = load_sign_recognizer(args.model)
+    sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
 
     print("Loading hand landmarker...")
     hand_tracker: HandLandmarker = load_hand_landmarker(int(args.numHands))
@@ -145,7 +126,7 @@ if __name__ == '__main__':
 
     handtrack_times = []
     sign_rec_times = []
-    frame_history: DataSample = DataSample("", [])
+    frame_history: DataSample2 = DataSample2("", [])
     prev_sign: int = -1
     prev_display: int = -1
 
@@ -166,12 +147,12 @@ if __name__ == '__main__':
             handtrack_times.pop(0)
         handtrack_time = sum(handtrack_times) / len(handtrack_times)
 
-        frame_history.pushfront_gesture_from_landmarks(hand_landmarks)
-        while len(frame_history.gestures) > model_info.memory_frame:
+        frame_history.insert_gesture_from_landmarks(0, hand_landmarks)
+        while len(frame_history.gestures) > sign_rec.info.memory_frame:
             frame_history.gestures.pop(-1)
 
         # frame_history.gestures.reverse()
-        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec_model)
+        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec)
         # frame_history.gestures.reverse()
         sign_rec_times.append(sign_rec_time)
         if len(sign_rec_times) > 10:
@@ -186,7 +167,7 @@ if __name__ == '__main__':
             prev_display = prev_sign
             prev_sign = recognized_sign
         if recognized_sign != -1:
-            text = f"{model_info.labels[recognized_sign]} prev({model_info.labels[prev_display]})"
+            text = f"{sign_rec.info.labels[recognized_sign]} prev({sign_rec.info.labels[prev_display]})"
         cv2.putText(image, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
         cv2.putText(image, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
         print(f"\r\033[KTrack time: {(handtrack_time * 1000):.3f}ms Recognition time: {(sign_rec_time * 1000):.3f}ms Output: {text}", end=" ")
