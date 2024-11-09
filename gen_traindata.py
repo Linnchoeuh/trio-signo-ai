@@ -97,7 +97,7 @@ total_subsets: int = 1
 dataset_name: str = None
 nb_frame = 15
 null_set: str = None
-active_gesture: ActiveGestures = None
+active_gesture: ActiveGestures = ALL_GESTURES
 while i < len(sys.argv):
     args = sys.argv[i]
     # print(args)
@@ -161,16 +161,20 @@ completed_cycle = 0
 
 subset: int = 0
 for label_id in range(len(dataset_labels)):
+
     treated_sample = 0
     dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
     label_total_samples = len(dataset_samples)
+
     for dataset_sample in dataset_samples:
         try:
             data_sample: DataSample2 = DataSample2.from_json_file(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}")
+
             if len(data_sample.gestures) > nb_frame: # Ensure the sample is not too long for the target memeory frame
                 data_sample.reframe(nb_frame)
             data_sample.label = dataset_labels[label_id] # Ensure the label is correct
             train_data.add_data_sample(data_sample)
+
             subset = 0
             while subset < total_subsets:
                 print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)

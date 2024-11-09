@@ -1,52 +1,109 @@
+import json
+import time
+import os
+import glob
+from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-import json
-import time
-import os
-from dataclasses import dataclass
-
-from mediapipe.tasks.python.components.containers.landmark import Landmark
 
 from src.datasample import *
 
 @dataclass
-class ModelInfoV1:
-    labels: list[str]
-    memory_frame: int
-    model_version: str = "v1"
-    model_name: str = ""
+class ModelInfo(TrainDataInfo):
+    layers: list[int]
+    name: str
+    mode_arch: str = "v1"
 
-def get_label_name_file(model_name: str) -> str:
-    if model_name.endswith('.pth'):
-        model_name = model_name[:-4]
-    model_name += '_labels.json'
-    return model_name
+    @classmethod
+    def build(cls, nb_of_memory_frame: int, active_gestures: ActiveGestures, output_labels: list[str], intermediate_layers: list[int] = [128, 64], name: str = None) -> 'ModelInfo':
+        if name is None:
+            name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
+        layers: list[int] = [nb_of_memory_frame * len(active_gestures.getActiveFields()) * 3] + intermediate_layers + [len(output_labels)]
+        label_map: dict[str, int] = {label: i for i, label in enumerate(output_labels)}
+        return cls(
+            labels=output_labels,
+            label_map=label_map,
+            memory_frame=nb_of_memory_frame,
+            active_gestures=active_gestures,
+            layers=layers,
+            name=name
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ModelInfo':
+        return cls(**data)
+
+    @classmethod
+    def from_json_file(cls, file_path: str) -> 'ModelInfo':
+        with open(file_path, 'r', encoding="utf-8") as f:
+            return cls.from_dict(json.load(f))
+
+    def to_dict(self):
+        _dict: dict = super(ModelInfo, self).to_dict()
+        _dict["layers"] = self.layers
+        _dict["name"] = self.name
+        _dict["mode_arch"] = self.mode_arch
+        return _dict
+
+    def to_json_file(self, file_path: str, indent: int = 4):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, indent=indent)
+
+
 
 class SignRecognizerV1(nn.Module):
-    def __init__(self, output_size: int, nb_of_memory_frame: int):
+    def __init__(self, model_info: ModelInfo):
         super(SignRecognizerV1, self).__init__()
-        self.input_neurons = nb_of_memory_frame * NEURON_CHUNK
-        print(self.input_neurons)
-        self.fc1 = nn.Linear(self.input_neurons, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, output_size)
+
+        self.info = model_info
+        self.fcs = nn.ModuleList()
+
+        for i in range(len(model_info.layers) - 1):
+            self.fcs.append(nn.Linear(model_info.layers[i], model_info.layers[i+1]))
+
+    @classmethod
+    def loadModelFromDir(cls, model_dir: str):
+        json_files = glob.glob(f"{model_dir}/*.json")
+        if len(json_files) == 0:
+            raise FileNotFoundError(f"No .json file found in {model_dir}")
+        cls = SignRecognizerV1(ModelInfo.from_json_file(json_files[0]))
+
+        pth_files = glob.glob(f"{model_dir}/*.pth")
+        if len(pth_files) == 0:
+            raise FileNotFoundError(f"No .pth file found in {model_dir}")
+        cls.loadPthFile(pth_files[0])
+
+        return cls
+
+    def loadPthFile(self, model_path):
+        self.load_state_dict(torch.load(model_path))
+
+    def saveModel(self, model_name: str = None):
+        if model_name is None:
+            model_name = self.info.name
+        if model_name.endswith(".pth"):
+            model_name = model_name[:-4]
+        if model_name.endswith(".json"):
+            model_name = model_name[:-5]
+
+        os.makedirs(model_name, exist_ok=True)
+        full_name = f"{model_name}/{model_name}"
+        torch.save(self.state_dict(), full_name + ".pth")
+        self.info.to_json_file(full_name + ".json")
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-    def loadModel(self, model_path):
-        self.load_state_dict(torch.load(model_path))
+        for i in range(len(self.fcs) - 1):
+            x = torch.relu(self.fcs[i](x))
+        return self.fcs[-1](x)
 
     def use(self, input: list[float]):
         # for i in range(len(input)):
         #     input[i] = round(input[i], 3)
-        while len(input) < self.input_neurons:
+        while len(input) < self.info.layers[0]:
             input.append(0)
         self.eval()
         input_tensor = torch.tensor(input, dtype=torch.float32)
@@ -77,7 +134,7 @@ class SignRecognizerV1(nn.Module):
                 label_tensor = torch.tensor(self.output[idx], dtype=torch.long)
                 return input_tensor, label_tensor
 
-        dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.input_neurons)
+        dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.info.layers[0])
         dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
 
         criterion = nn.CrossEntropyLoss()
@@ -94,30 +151,3 @@ class SignRecognizerV1(nn.Module):
 
             # print(outputs)
             print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
-
-
-    def saveModel(self, train_data: TrainData, model_name: str = None):
-        if model_name is None:
-            model_name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
-        else:
-            if model_name.endswith(".pth"):
-                model_name = model_name[:-4]
-            if model_name.endswith(".json"):
-                model_name = model_name[:-5]
-
-        os.makedirs(model_name, exist_ok=True)
-        full_name = f"{model_name}/{model_name}"
-
-        torch.save(self.state_dict(), full_name + ".pth")
-        with open(get_label_name_file(full_name), 'w', encoding="utf-8") as f:
-            json.dump(ModelInfoV1(train_data.info.labels, train_data.info.memory_frame, model_name=model_name).__dict__, f, ensure_ascii=False, indent=4)
-
-    # def add_frame(self, hand_landmark: HandLandmarkerResult):
-    #     try:
-    #         sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
-    #         self.input_data += sample.samples_to_1d_array()
-    #     except:
-    #         for i in range(NEURON_CHUNK):
-    #             self.input_data.append(0)
-    #     while len(self.input_data) > self.input_neurons:
-    #         self.input_data.pop(0)
