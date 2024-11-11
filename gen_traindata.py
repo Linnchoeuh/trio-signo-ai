@@ -60,7 +60,8 @@ def create_subset(sample: DataSample, nb_frame: int, null_set: str = None) -> li
     sub_sample: deque[DataSample] = deque()
 
     mirror_sample = copy.deepcopy(sample)
-    mirror_sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
+    if mirror_sample.mirrorable:
+        mirror_sample.mirror_sample(mirror_x=True, mirror_y=False, mirror_z=False)
 
     if len(sample.gestures) == 1:
         for samp in [sample, mirror_sample]:
