@@ -74,9 +74,23 @@ def create_subset(sample: DataSample2, nb_frame: int, null_set: str = None, acti
     # Randomize all point that are not defined
     for samp in sub_sample:
         samp.setNonePointsRandomlyToRandomOrZero()
+
+    # Create pure non valid data
+    if null_set is not None:
+        for i in range(2):
+            tmp_sample: DataSample2 = DataSample2(null_set, [])
+
+        target_nb_frame: int = random.randint(1, nb_frame)
+        while len(tmp_sample.gestures) < target_nb_frame:
+            if random.randint(0, 5) == 0:
+                tmp_sample.gestures.insert(-1, DataGestures())
+            else:
+                tmp_sample.gestures.insert(-1, rand_gesture())
+        sub_sample.append(tmp_sample)
+
     return list(sub_sample)
 
-def summary_checker(null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, active_gesture: ActiveGestures = None):
+def summary_checker(dataset_name: str, null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, active_gesture: ActiveGestures = None):
     print(f"Dataset name: {dataset_name}")
     print(f"Null label: {null_label}")
     print(f"Labels: {labels}")
@@ -90,85 +104,89 @@ def summary_checker(null_label: str, labels: list[str], total_subsets: int, nb_f
         if answer == "n":
             exit(0)
 
+def main():
+    i = 1
+    dataset_labels: list[str] = []
+    total_subsets: int = 1
+    dataset_name: str = None
+    nb_frame = 15
+    null_set: str = None
+    active_gesture: ActiveGestures = ALL_GESTURES
+    while i < len(sys.argv):
+        args = sys.argv[i]
+        # print(args)
+        if args.startswith("-"):
+            match args[1]:
+                case "h":
+                    print_help()
+                    exit()
+                case "s":
+                    i += 1
+                    total_subsets = int(sys.argv[i])
+                case "n":
+                    i += 1
+                    dataset_name = sys.argv[i]
+                case "f":
+                    i += 1
+                    nb_frame = int(sys.argv[i])
+                case "x":
+                    i += 1
+                    null_set = sys.argv[i]
+                    dataset_labels.append(null_set)
+                case "a":
+                    i += 1
+                    tmp: dict[str, ActiveGestures] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
+                    if tmp is None:
+                        print("Invalid active gesture preset")
+                        exit(1)
+                    active_gesture = tmp[0]
+        else:
+            dataset_labels.append(args)
+        i += 1
 
-i = 1
-dataset_labels: list[str] = []
-total_subsets: int = 1
-dataset_name: str = None
-nb_frame = 15
-null_set: str = None
-active_gesture: ActiveGestures = ALL_GESTURES
-while i < len(sys.argv):
-    args = sys.argv[i]
-    # print(args)
-    if args.startswith("-"):
-        match args[1]:
-            case "h":
-                print_help()
-                exit()
-            case "s":
-                i += 1
-                total_subsets = int(sys.argv[i])
-            case "n":
-                i += 1
-                dataset_name = sys.argv[i]
-            case "f":
-                i += 1
-                nb_frame = int(sys.argv[i])
-            case "x":
-                i += 1
-                null_set = sys.argv[i]
-                dataset_labels.append(null_set)
-            case "a":
-                i += 1
-                tmp: dict[str, ActiveGestures] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
-                if tmp is None:
-                    print("Invalid active gesture preset")
-                    exit(1)
-                active_gesture = tmp[0]
-    else:
-        dataset_labels.append(args)
-    i += 1
+    folders = os.listdir(DATASETS_DIR)
 
-folders = os.listdir(DATASETS_DIR)
+    valid = True
+    for dataset in dataset_labels:
+        if dataset not in folders:
+            print(f"Dataset\"{dataset}\" not found in {DATASETS_DIR}")
+            valid = False
+    if not valid:
+        exit(1)
 
-valid = True
-for dataset in dataset_labels:
-    if dataset not in folders:
-        print(f"Dataset\"{dataset}\" not found in {DATASETS_DIR}")
-        valid = False
-if not valid:
-    exit(1)
+    if dataset_name is None:
+        timestamp = time.time()
+        # Convert the timestamp to local time (struct_time object)
+        local_time = time.localtime(timestamp)
+        # Format the local time as a string
+        formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
+        dataset_name = f"trainset_{formatted_date}"
 
-if dataset_name is None:
-    timestamp = time.time()
-    # Convert the timestamp to local time (struct_time object)
-    local_time = time.localtime(timestamp)
-    # Format the local time as a string
-    formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
-    dataset_name = f"trainset_{formatted_date}"
+    summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
 
-summary_checker(null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
+    train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
 
-train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
+    start_time = time.time()
+    total_cycle = 0
+    for label_id in range(len(dataset_labels)):
+        dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
+        total_cycle += len(dataset_samples) * total_subsets
+    completed_cycle = 0
 
-start_time = time.time()
-total_cycle = 0
-for label_id in range(len(dataset_labels)):
-    dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
-    total_cycle += len(dataset_samples) * total_subsets
-completed_cycle = 0
+    subset: int = 0
+    for label_id in range(len(dataset_labels)):
 
-subset: int = 0
-for label_id in range(len(dataset_labels)):
+        treated_sample = 0
+        dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
+        label_total_samples = len(dataset_samples)
 
-    treated_sample = 0
-    dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
-    label_total_samples = len(dataset_samples)
+        for dataset_sample in dataset_samples:
+            try:
+                data_sample: DataSample2 = DataSample2.from_json_file(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}")
+            except Exception as e:
+                print(f"\nError: {dataset_sample} is not a valid json file. {e}")
+                continue
 
-    for dataset_sample in dataset_samples:
-        try:
-            data_sample: DataSample2 = DataSample2.from_json_file(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}")
 
             if len(data_sample.gestures) > nb_frame: # Ensure the sample is not too long for the target memeory frame
                 data_sample.reframe(nb_frame)
@@ -178,21 +196,25 @@ for label_id in range(len(dataset_labels)):
             subset = 0
             while subset < total_subsets:
                 print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-                train_data.add_data_samples(create_subset(data_sample, nb_frame))
+                train_data.add_data_samples(create_subset(data_sample, nb_frame, null_set, active_gesture))
                 completed_cycle += 1
                 subset += 1
+
             print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-
             treated_sample += 1
-        except Exception as e:
-            print(f"\nError: {dataset_sample} is not a valid json file. {e}")
+        print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
     print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
 
-train_data.getNumberOfSamples()
-print()
-print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
-print("Total unique sample created: ", train_data.getNumberOfSamples())
-print("Saving dataset...")
-train_data.to_cbor_file(f"./{dataset_name}.cbor")
-# train_data.to_json_file(f"./{dataset_name}.json", indent=4)
+    train_data.getNumberOfSamples()
+    print()
+    print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+    print("Total unique sample created: ", train_data.getNumberOfSamples())
+    print("Saving dataset...")
+    train_data.to_cbor_file(f"./{dataset_name}.cbor")
+    # train_data.to_json_file(f"./{dataset_name}.json", indent=4)
+
+# import cProfile
+
+if __name__ == "__main__":
+    # cProfile.run("main()", sort="cumtime")
+    main()
