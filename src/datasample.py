@@ -311,10 +311,10 @@ class DataSample2:
     def insert_gesture_from_landmarks(self, position: int, hand_landmarks: HandLandmarkerResult):
         self.gestures.insert(position, DataGestures.buildFromHandLandmarkerResult(hand_landmarks))
 
-    def samples_to_1d_array(self, active_gesture: ActiveGestures | None = None) -> list[float]:
+    def samples_to_1d_array(self, valid_fields: list[str] | None = None) -> list[float]:
         raw_data = []
         for gesture in self.gestures:
-            raw_data.extend(gesture.get1DArray(active_gesture))
+            raw_data.extend(gesture.get1DArray(valid_fields))
         return raw_data
 
     def setNonePointsRandomlyToRandomOrZero(self, proba: float = 0.1) -> 'DataSample2':
@@ -391,6 +391,11 @@ class DataSample2:
         # print(self.gestures)
         return self
 
+    def set_sample_gestures_point_to(self, point_field_name: str, value: list[float]) -> 'DataSample2':
+        for gesture in self.gestures:
+            setattr(gesture, point_field_name, value)
+        return self
+
 
 @dataclass
 class TrainDataInfo:
@@ -404,12 +409,14 @@ class TrainDataInfo:
         self.labels = labels
         self.memory_frame = memory_frame
         self.active_gestures = active_gestures
+        self.label_map = label_map
 
-        if label_map is None:
+
+        if self.label_map is None:
             self.label_map = {label: i for i, label in enumerate(labels)}
         else:
             for label in labels:
-                if label not in label_map:
+                if label not in self.label_map:
                     raise ValueError(f"Label {label} not found in label_map")
 
     @classmethod
@@ -445,7 +452,6 @@ class TrainData:
     def __init__(self, info: TrainDataInfo, samples: list[set[list[float]]] = None):
         self.info = info
 
-        self.test = set()
         if samples is not None:
             self.samples = samples
         else:
@@ -507,7 +513,6 @@ class TrainData:
 
         self.samples[self.info.label_map[label]].add(tuple(data_sample.samples_to_1d_array()))
         self.sample_count += 1
-        pass
 
     def add_data_samples(self, data_samples: list[DataSample]):
         for data_sample in data_samples:
@@ -532,11 +537,13 @@ class TrainData:
 class TrainData2:
     info: TrainDataInfo
     samples: list[set[tuple[int, tuple[float]]]] # (label)list[(gesture)set[(datasample)tuple[(id)int, (frames)tuple[float]]]]
+    # samples: list[set[tuple[float]]] # (label)list[(gesture)set[(datasample)tuple[float]]]
     sample_count: int
 
     def __init__(self, info: TrainDataInfo, samples: list[set[tuple[float]]] = None):
         self.info = info
 
+        self.valid_fields: list[str] = info.active_gestures.getActiveFields()
         if samples is not None:
             if len(samples) != len(info.labels):
                 raise ValueError("Samples length does not match the number of labels")
@@ -550,6 +557,7 @@ class TrainData2:
     @classmethod
     def from_dict(cls, json_data):
 
+        sample_count: int = 0
         samples: list[set[tuple[int, tuple[float]]]] = []
         dict_sample: list[list[list[float]]] = json_data['samples']
 
@@ -558,7 +566,10 @@ class TrainData2:
             samples.append(set())
             for sample in dict_sample[sample_label_id]:
                 # Create the "tuple[int, tuple[float]]" part and add it to the appropriated "set"
-                samples[-1].add((len(samples[-1]), tuple(sample)))
+                samples[-1].add((sample_count, tuple(sample)))
+                # samples[-1].add(tuple(sample))
+
+                sample_count += 1
 
         return cls(
             info=TrainDataInfo.from_dict(json_data['info']),
@@ -599,6 +610,7 @@ class TrainData2:
                 # list[list[list[float]]] replaces "tuple[int, tuple[float]]" by "list[float]"
                 # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
                 samples[i][k] = list(samples[i][k][1])
+                # samples[i][k] = list(samples[i][k])
                 count += 1
         tmp: dict = self.__dict__
         tmp["info"] = self.info.to_dict()
@@ -617,12 +629,17 @@ class TrainData2:
             f.write(self.to_cbor())
 
     def add_data_sample(self, data_sample: DataSample2):
+        # Get or cache label_id
         label_id = self.info.label_map[data_sample.label]
 
-        self.samples[label_id].add((
-            len(self.samples[label_id]),
-            tuple(data_sample.samples_to_1d_array(self.info.active_gestures))
-        ))
+        # Convert the array to a tuple once
+        sample_data = tuple(data_sample.samples_to_1d_array(self.valid_fields))
+
+        # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
+        self.samples[label_id].add((self.sample_count, sample_data))
+        # self.samples[label_id].add(sample_data)
+
+        # Increment the overall sample count
         self.sample_count += 1
 
     def add_data_samples(self, data_samples: list[DataSample2]):
@@ -643,6 +660,7 @@ class TrainData2:
                 # Convert the "tuple[int, tuple[float]]" to "list[float]"
                 # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
                 samples.append(list(sample[1]))
+                # samples.append(list(sample))
         return samples
 
     def get_output_data(self) -> list[int]:

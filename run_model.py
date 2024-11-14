@@ -82,10 +82,10 @@ def draw_land_marks(image: cv2.typing.MatLike, hand_landmarks: HandLandmarkerRes
           mp_drawing_styles.get_default_hand_connections_style())
     return img_cpy
 
-def recognize_sign(sample: DataSample, sign_recognition_model: SignRecognizerV1) -> tuple[int, float]:
+def recognize_sign(sample: DataSample, sign_recognition_model: SignRecognizerV1, valid_fields: list[str] = None) -> tuple[int, float]:
     start_time = time.time()
     if type(sign_recognition_model) is SignRecognizerV1:
-        return sign_recognition_model.use(sample.samples_to_1d_array()), time.time() - start_time
+        return sign_recognition_model.use(sample.samples_to_1d_array(valid_fields)), time.time() - start_time
     else:
         raise ValueError("Model type not supported")
     return -1, time.time() - start_time
@@ -129,6 +129,7 @@ if __name__ == '__main__':
     frame_history: DataSample2 = DataSample2("", [])
     prev_sign: int = -1
     prev_display: int = -1
+    valid_fields: list[str] = sign_rec.info.active_gestures.getActiveFields()
 
     while cap.isOpened():
         success, image = cap.read()
@@ -152,7 +153,7 @@ if __name__ == '__main__':
             frame_history.gestures.pop(-1)
 
         # frame_history.gestures.reverse()
-        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec)
+        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, valid_fields)
         # frame_history.gestures.reverse()
         sign_rec_times.append(sign_rec_time)
         if len(sign_rec_times) > 10:

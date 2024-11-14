@@ -68,6 +68,8 @@ class Gestures(Generic[T]):
     r_pinky_dip: T = None
     r_pinky_tip: T = None
 
+FIELDS: list[str] = [field.name for field in fields(Gestures())]
+
 
 @dataclass
 class ActiveGestures(Gestures[bool | None]):
@@ -84,35 +86,40 @@ class ActiveGestures(Gestures[bool | None]):
         tmp.setActiveGestures(gestures_to_set)
         return tmp
 
-    def setActiveGestures(self, gestures_to_set: Gestures[bool | None] | list[Gestures[bool | None]]) -> None:
+    def setActiveGestures(self, gestures_to_set: Gestures[bool | None] | list[Gestures[bool | None]]) -> "ActiveGestures":
         if not isinstance(gestures_to_set, list):
             gestures_to_set = [gestures_to_set]
 
         self.resetActiveGestures()
 
         for gesture in gestures_to_set:
-            for field in fields(gesture):
-                field_data = getattr(gesture, field.name)
+            for field_name in FIELDS:
+                field_data = getattr(gesture, field_name)
                 if field_data is not None:
-                    setattr(self, field.name, field_data)
+                    setattr(self, field_name, field_data)
+        return self
 
-    def resetActiveGestures(self) -> None:
-        for field in fields(self):
-            setattr(self, field.name, None)
+    def setFieldsTo(self, value, valid_fields: list[str] = None) -> "ActiveGestures":
+        if valid_fields is None:
+            valid_fields = FIELDS
+        for field_name in valid_fields:
+            setattr(self, field_name, value)
+        return self
 
-    def activateAllGesture(self) -> None:
-        for field in fields(self):
-            setattr(self, field.name, True)
+    def resetActiveGestures(self, valid_fields: list[str] = None) -> "ActiveGestures":
+        return self.setFieldsTo(self, valid_fields)
 
-    def deactivateAllGesture(self) -> None:
-        for field in fields(self):
-            setattr(self, field.name, False)
+    def activateAllGesture(self, valid_fields: list[str] = None) -> "ActiveGestures":
+        return self.setFieldsTo(True, valid_fields)
+
+    def deactivateAllGesture(self, valid_fields: list[str] = None) -> "ActiveGestures":
+        return self.setFieldsTo(False, valid_fields)
 
     def getActiveFields(self) -> list[str]:
         active_fields = []
-        for field in fields(self):
-            if getattr(self, field.name):
-                active_fields.append(field.name)
+        for field_name in FIELDS:
+            if getattr(self, field_name):
+                active_fields.append(field_name)
         return active_fields
 
 LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
@@ -222,16 +229,21 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
 CACHE_HANDS_POINTS: list[str] = HANDS_POINTS.getActiveFields()
 CACHE_HANDS_POSITION: list[str] = HANDS_POSITION.getActiveFields()
 
+def get_fields(valid_fields: list[str] | None = None) -> list[str]:
+    if valid_fields is None:
+        return FIELDS
+    return valid_fields
+
 @dataclass
 class DataGestures(Gestures[list[float, float, float] | None]):
 
     @classmethod
-    def buildFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult) -> "DataGestures":
+    def buildFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
         tmp = DataGestures()
-        tmp.setHandsFromHandLandmarkerResult(landmark_result)
+        tmp.setHandsFromHandLandmarkerResult(landmark_result, valid_fields)
         return tmp
 
-    def setHandsFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult) -> None:
+    def setHandsFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
         """Convert the HandLandmarkerResult object into a DataGestures object.
 
         HandLandmarkerResult.hand_landmark represent the position of the hand in the image.
@@ -250,30 +262,52 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 handlandmark elements store their position in a range of 0 to 1.
                 Doing so will ease operation such as mirroring or rotation.
                 """
-                self.r_hand_position = [handlandmark[0].x - 0.5, handlandmark[0].y - 0.5, handlandmark[0].z - 0.5]
+                if valid_fields is None or "r_hand_position" in valid_fields:
+                    self.r_hand_position = [handlandmark[0].x - 0.5, handlandmark[0].y - 0.5, handlandmark[0].z - 0.5]
 
                 # Adding position of each finger articulation
-                self.r_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
-                self.r_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
-                self.r_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
-                self.r_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
-                self.r_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
-                self.r_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
-                self.r_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
-                self.r_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
-                self.r_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
-                self.r_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
-                self.r_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
-                self.r_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
-                self.r_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
-                self.r_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
-                self.r_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
-                self.r_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
-                self.r_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
-                self.r_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
-                self.r_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
-                self.r_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
-                self.r_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                if valid_fields is None or "r_wrist" in valid_fields:
+                    self.r_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
+                if valid_fields is None or "r_thumb_cmc" in valid_fields:
+                    self.r_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
+                if valid_fields is None or "r_thumb_mcp" in valid_fields:
+                    self.r_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
+                if valid_fields is None or "r_thumb_ip" in valid_fields:
+                    self.r_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
+                if valid_fields is None or "r_thumb_tip" in valid_fields:
+                    self.r_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
+                if valid_fields is None or "r_index_mcp" in valid_fields:
+                    self.r_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
+                if valid_fields is None or "r_index_pip" in valid_fields:
+                    self.r_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
+                if valid_fields is None or "r_index_dip" in valid_fields:
+                    self.r_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
+                if valid_fields is None or "r_index_tip" in valid_fields:
+                    self.r_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
+                if valid_fields is None or "r_middle_mcp" in valid_fields:
+                    self.r_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
+                if valid_fields is None or "r_middle_pip" in valid_fields:
+                    self.r_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
+                if valid_fields is None or "r_middle_dip" in valid_fields:
+                    self.r_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
+                if valid_fields is None or "r_middle_tip" in valid_fields:
+                    self.r_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
+                if valid_fields is None or "r_ring_mcp" in valid_fields:
+                    self.r_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
+                if valid_fields is None or "r_ring_pip" in valid_fields:
+                    self.r_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
+                if valid_fields is None or "r_ring_dip" in valid_fields:
+                    self.r_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
+                if valid_fields is None or "r_ring_tip" in valid_fields:
+                    self.r_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
+                if valid_fields is None or "r_pinky_mcp" in valid_fields:
+                    self.r_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
+                if valid_fields is None or "r_pinky_pip" in valid_fields:
+                    self.r_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
+                if valid_fields is None or "r_pinky_dip" in valid_fields:
+                    self.r_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
+                if valid_fields is None or "r_pinky_tip" in valid_fields:
+                    self.r_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
             else:
                 """
                 We use the wrist position to get the hand location
@@ -281,84 +315,115 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 handlandmark elements store their position in a range of 0 to 1.
                 Doing so will ease operation such as mirroring or rotation.
                 """
-                self.l_hand_position = [handlandmark[0].x, handlandmark[0].y, handlandmark[0].z]
+                if valid_fields is None or "l_hand_position" in valid_fields:
+                    self.l_hand_position = [handlandmark[0].x, handlandmark[0].y, handlandmark[0].z]
 
                 # Adding position of each finger articulation
-                self.l_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
-                self.l_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
-                self.l_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
-                self.l_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
-                self.l_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
-                self.l_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
-                self.l_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
-                self.l_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
-                self.l_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
-                self.l_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
-                self.l_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
-                self.l_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
-                self.l_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
-                self.l_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
-                self.l_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
-                self.l_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
-                self.l_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
-                self.l_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
-                self.l_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
-                self.l_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
-                self.l_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                if valid_fields is None or "l_wrist" in valid_fields:
+                    self.l_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
+                if valid_fields is None or "l_thumb_cmc" in valid_fields:
+                    self.l_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
+                if valid_fields is None or "l_thumb_mcp" in valid_fields:
+                    self.l_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
+                if valid_fields is None or "l_thumb_ip" in valid_fields:
+                    self.l_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
+                if valid_fields is None or "l_thumb_tip" in valid_fields:
+                    self.l_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
+                if valid_fields is None or "l_index_mcp" in valid_fields:
+                    self.l_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
+                if valid_fields is None or "l_index_pip" in valid_fields:
+                    self.l_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
+                if valid_fields is None or "l_index_dip" in valid_fields:
+                    self.l_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
+                if valid_fields is None or "l_index_tip" in valid_fields:
+                    self.l_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
+                if valid_fields is None or "l_middle_mcp" in valid_fields:
+                    self.l_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
+                if valid_fields is None or "l_middle_pip" in valid_fields:
+                    self.l_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
+                if valid_fields is None or "l_middle_dip" in valid_fields:
+                    self.l_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
+                if valid_fields is None or "l_middle_tip" in valid_fields:
+                    self.l_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
+                if valid_fields is None or "l_ring_mcp" in valid_fields:
+                    self.l_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
+                if valid_fields is None or "l_ring_pip" in valid_fields:
+                    self.l_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
+                if valid_fields is None or "l_ring_dip" in valid_fields:
+                    self.l_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
+                if valid_fields is None or "l_ring_tip" in valid_fields:
+                    self.l_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
+                if valid_fields is None or "l_pinky_mcp" in valid_fields:
+                    self.l_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
+                if valid_fields is None or "l_pinky_pip" in valid_fields:
+                    self.l_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
+                if valid_fields is None or "l_pinky_dip" in valid_fields:
+                    self.l_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
+                if valid_fields is None or "l_pinky_tip" in valid_fields:
+                    self.l_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+
         return self
 
-    def setPointToZero(self, point: str) -> "DataGestures":
-        setattr(self, point, [0, 0, 0])
+    def setPointTo(self, point_field_name, x: float, y: float, z: float) -> "DataGestures":
+        setattr(self, point_field_name, [x, y, z])
+        return self
+
+    def setPointToZero(self, point_field_name: str) -> "DataGestures":
+        self.setPointTo(point_field_name, 0, 0, 0)
         return self
 
     def setPointToRandom(self, point: str) -> "DataGestures":
         if point in CACHE_HANDS_POSITION:
-            setattr(self, point, [rand_fix_interval(1), rand_fix_interval(1), rand_fix_interval(1)])
-        elif point in CACHE_HANDS_POINTS:
+            self.setPointTo(point, rand_fix_interval(1), rand_fix_interval(1), rand_fix_interval(1))
+        else: # elif point in CACHE_HANDS_POINTS:
             # 0.15 is the max value I can find on hand landmark
-            setattr(self, point, [rand_fix_interval(0.15), rand_fix_interval(0.15), rand_fix_interval(0.15)])
+            self.setPointTo(point, rand_fix_interval(0.15), rand_fix_interval(0.15), rand_fix_interval(0.15))
         return self
 
     def setAllPointsToZero(self) -> "DataGestures":
-        for field in fields(self):
-            self.setPointToZero(field.name)
+        for field_name in FIELDS:
+            self.setPointToZero(field_name)
         return self
 
     def setAllPointsToRandom(self) -> "DataGestures":
-        for field in fields(self):
-            self.setPointToRandom(field.name)
+        for field_name in FIELDS:
+            self.setPointToRandom(field_name)
         return self
 
     def setNonePointsToZero(self) -> "DataGestures":
-        for field in fields(self):
-            if getattr(self, field.name) is None:
-                self.setPointToZero(field.name)
+        for field_name in FIELDS:
+            if getattr(self, field_name) is None:
+                self.setPointToZero(field_name)
         return self
 
     def setNonePointsToRandom(self) -> "DataGestures":
-        for field in fields(self):
-            if getattr(self, field.name) is None:
-                self.setPointToRandom(field.name)
+        for field_name in FIELDS:
+            if getattr(self, field_name) is None:
+                self.setPointToRandom(field_name)
         return self
 
     def setNonePointsRandomlyToRandomOrZero(self, proba: float = 0.1) -> "DataGestures":
-        for field in fields(self):
-            if getattr(self, field.name) is None:
-                if random.random() < proba:
-                    self.setPointToZero(field.name)
-                else:
-                    self.setPointToRandom(field.name)
+        # Filter fields where the attribute is None
+        none_fields = [field_name for field_name in FIELDS if getattr(self, field_name) is None]
+
+        for field_name in none_fields:
+            if random.random() < proba:
+                setattr(self, field_name, [0, 0, 0])  # Replace setPointToZero with direct set to 0
+            else:
+                self.setPointToRandom(field_name)
+
         return self
 
-    def get1DArray(self, active_gestures: ActiveGestures | None = None) -> list[float]:
-        data = []
-        for field in fields(self):
-            if active_gestures is None or getattr(active_gestures, field.name):
-                attr: list[float, float, float] | None = getattr(self, field.name)
-                if attr is None:
-                    attr = [0, 0, 0]
-                    # raise ValueError(f"Field {field.name} is None")
-                data += attr
+    def get1DArray(self, valid_fields: list[str] = None) -> list[float]:
+        data: list[float] = []
+        valid_fields = get_fields(valid_fields)
+
+        for field_name in valid_fields:
+            attr: list[float, float, float] | None = getattr(self, field_name)
+            if attr is None:
+                attr = [0, 0, 0]
+                # raise ValueError(f"Field {field_name} is None")
+            data += attr
         return data
 
     def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -371,20 +436,19 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         Returns:
             DataSample2: Return this class instance for chaining
         """
-        for field in fields(self):
-            if not is_valid_field(field.name, valid_fields):
-                continue
-            field_value: list[float] = getattr(self, field.name)
+        valid_fields = get_fields(valid_fields)
+        for field_name in valid_fields:
+            field_value: list[float] = getattr(self, field_name)
             if field_value is not None:
                 field_value[0] += rand_fix_interval(range)
                 field_value[1] += rand_fix_interval(range)
                 field_value[2] += rand_fix_interval(range)
-                setattr(self, field.name, field_value)
+                setattr(self, field_name, field_value)
         return self
 
     def mirror(self, x: bool = True, y: bool = False, z: bool = False) -> "DataGestures":
-        for field in fields(self):
-            field_value: list[float] = getattr(self, field.name)
+        for field_name in FIELDS:
+            field_value: list[float] = getattr(self, field_name)
             if field_value is None:
                 continue
             if x:
@@ -393,7 +457,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 field_value[1] *= -1
             if z:
                 field_value[2] *= -1
-            setattr(self, field.name, field_value)
+            setattr(self, field_name, field_value)
 
         # Mirroring the hand make the hand become the opposite hand
         # This if statement will swap the left hand and right hand data
@@ -427,62 +491,36 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         return self
 
     def rotate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
-        for field in fields(self):
-            if not is_valid_field(field.name, valid_fields):
-                continue
-            field_value: list[float] = getattr(self, field.name)
+        for field_name in get_fields(valid_fields):
+            field_value: list[float] = getattr(self, field_name)
             if field_value is None:
                 continue
             field_value = rot_3d_x(field_value, x)
             field_value = rot_3d_y(field_value, y)
             field_value = rot_3d_z(field_value, z)
-            setattr(self, field.name, field_value)
+            setattr(self, field_name, field_value)
         return self
 
     def scale(self, x: float = 1, y: float = 1, z: float = 1, valid_fields: list[str] | None = None) -> "DataGestures":
-        for field in fields(self):
-            if not is_valid_field(field.name, valid_fields):
-                print(f"Skipping {field.name}")
-                continue
-            field_value: list[float] = getattr(self, field.name)
+        valid_fields = get_fields(valid_fields)
+        for field_name in valid_fields:
+            field_value: list[float] = getattr(self, field_name)
             if field_value is None:
                 continue
             field_value[0] *= x
             field_value[1] *= y
             field_value[2] *= z
-            setattr(self, field.name, field_value)
+            setattr(self, field_name, field_value)
         return self
 
     def translate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
-        for field in fields(self):
-            if not is_valid_field(field.name, valid_fields):
-                continue
-            field_value: list[float] = getattr(self, field.name)
+        valid_fields = get_fields(valid_fields)
+        for field_name in valid_fields:
+            field_value: list[float] = getattr(self, field_name)
             if field_value is None:
                 continue
             field_value[0] += x
             field_value[1] += y
             field_value[2] += z
-            setattr(self, field.name, field_value)
+            setattr(self, field_name, field_value)
         return self
-
-    # def translate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
-    #     if valid_fields:
-    #         for field_name in valid_fields:
-    #             field_value: list[float] = getattr(self, field_name)
-    #             if field_value is None:
-    #                 continue
-    #             field_value[0] += x
-    #             field_value[1] += y
-    #             field_value[2] += z
-    #             setattr(self, field_name, field_value)
-    #     else:
-    #         for field in fields(self):
-    #             field_value: list[float] = getattr(self, field.name)
-    #             if field_value is None:
-    #                 continue
-    #             field_value[0] += x
-    #             field_value[1] += y
-    #             field_value[2] += z
-    #             setattr(self, field.name, field_value)
-    #     return self

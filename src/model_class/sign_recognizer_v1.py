@@ -35,6 +35,7 @@ class ModelInfo(TrainDataInfo):
 
     @classmethod
     def from_dict(cls, data: dict) -> 'ModelInfo':
+        data["active_gestures"] = ActiveGestures(**data["active_gestures"])
         return cls(**data)
 
     @classmethod
