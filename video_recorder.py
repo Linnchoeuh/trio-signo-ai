@@ -68,7 +68,6 @@ while True:
             print("Video error.")
             break
         
-        # Ajout de l'effet miroir
         frame = cv2.flip(frame, 1)
 
         if is_recording:
