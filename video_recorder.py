@@ -68,14 +68,14 @@ while True:
             print("Video error.")
             break
         
-        # Ajout de l'effet miroir
         frame = cv2.flip(frame, 1)
+
+        result, _ = track_hand(frame, handland_marker)
+        frame = draw_land_marks(frame, result)
 
         if is_recording:
             out.write(frame)
-            result, _ = track_hand(frame, handland_marker)
             data_sample.insert_gesture_from_landmarks(0, result)
-            frame = draw_land_marks(frame, result)
             cv2.putText(frame, "Recording...", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         instruction_image = create_instruction_image()
