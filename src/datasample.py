@@ -300,7 +300,7 @@ class DataSample2:
         return cls.from_dict(data)
 
     def to_dict(self):
-        tmp: dict = self.__dict__
+        tmp: dict = copy.deepcopy(self).__dict__
         tmp['gestures'] = [gesture.__dict__ for gesture in self.gestures]
         return tmp
 
@@ -396,6 +396,17 @@ class DataSample2:
             setattr(gesture, point_field_name, value)
         return self
 
+    def swap_hands(self) -> 'DataSample2':
+        """Should not be used.<br>
+        This function is used to swap the left hand and right hand data,
+        in case the hands are mirrored or the data is not in the right order.
+
+        Returns:
+            DataSample2: _description_
+        """
+        for gesture in self.gestures:
+            gesture.swap_hands()
+        return self
 
 @dataclass
 class TrainDataInfo:
@@ -435,7 +446,7 @@ class TrainDataInfo:
     def to_dict(self):
         active_gestures = self.active_gestures
         if self.active_gestures is not None:
-            active_gestures = self.active_gestures.__dict__
+            active_gestures = self.active_gestures.to_dict()
         return {
             'labels': self.labels,
             'memory_frame': self.memory_frame,
@@ -668,3 +679,30 @@ class TrainData2:
         for i in range(len(self.samples)):
             labels += [i] * len(self.samples[i])
         return labels
+
+    def split_trainset(self, ratio: float = 0.8) -> tuple['TrainData2', 'TrainData2']:
+        """Split the trainset into two trainset
+
+        Args:
+            ratio (float, optional): Ratio of the first trainset. Defaults to 0.8.
+
+        Returns:
+            tuple[TrainData2, TrainData2]: The two trainset
+        """
+        trainset1 = TrainData2(info=copy.deepcopy(self.info))
+        trainset2 = TrainData2(info=copy.deepcopy(self.info))
+
+        for i in range(len(self.samples)):
+
+            total_label_samples = len(self.samples[i])
+            label_sample: set[tuple[int, tuple[float]]] = list(self.samples[i])
+
+            while len(label_sample) / total_label_samples > ratio:
+                trainset2.samples[i].add(
+                    label_sample.pop(random.randint(0, len(label_sample) - 1))
+                )
+            trainset1.samples[i] = set(label_sample)
+
+        trainset1.getNumberOfSamples()
+        trainset2.getNumberOfSamples()
+        return trainset1, trainset2

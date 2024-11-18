@@ -2,8 +2,8 @@
     "labels": [
         "_null",
         "a",
-        "j",
-        "y"
+        "b",
+        "c"
     ],
     "memory_frame": 15,
     "active_gestures": {
@@ -55,15 +55,14 @@
     "label_map": {
         "_null": 0,
         "a": 1,
-        "j": 2,
-        "y": 3
+        "b": 2,
+        "c": 3
     },
     "layers": [
         1980,
-        128,
-        64,
+        32,
         4
     ],
-    "name": "model_14-11-2024_14-12-39",
+    "name": "model_abc",
     "mode_arch": "v1"
 }

@@ -1,5 +1,6 @@
 import sys
 import json
+import os
 import pygame
 from src.datasample import *
 from src.rot_3d import *
@@ -15,16 +16,25 @@ scale = 10000
 object_position = [WIDTH//2, HEIGHT//2]
 
 if len(sys.argv) < 2:
-    print("Usage: python play_datasample.py <json_file>")
+    print("Usage: python play_datasample.py <json_file/dir>")
     exit(1)
 
-sample: DataSample2 = DataSample2.from_json_file(sys.argv[1])
+selected_sample: int = 0
+samples: list[tuple[DataSample2, str]] = []
+
+try:
+    samples = [(DataSample2.from_json_file(sys.argv[1]), sys.argv[1])]
+except:
+    for file in os.listdir(sys.argv[1]):
+        if file.endswith(".json"):
+            samples.append((DataSample2.from_json_file(f"{sys.argv[1]}/{file}"), f"{sys.argv[1]}/{file}"))
+samples.sort(key=lambda x: x[1])
+samples.sort(key=lambda x: len(x[1]))
 # sample.scale_sample(y=0)
 # sample.mirror_sample(x=True, y=False, z=False)
 # sample.translate_sample(0.1, 0, 0)
 # sample.reframe(15)
 
-print(len(sample.gestures))
 
 p = pygame.init()
 run = True
@@ -112,9 +122,23 @@ def render_hand(win, hand_frame: DataGestures):
         # print(dist)
         pygame.draw.circle(win, (min(255, int(30 * dist)), 0, 0), from_coord_list_xyz(pos), dist)
 
+print(f"""
+Controls:
+    - Arrow keys to rotate
+    - Space to play/pause animation
+    - S to go back one frame
+    - Z to go forward one frame
+    - R to reset rotation
+    - PageUp to select previous sample (if multiple samples are loaded)
+    - PageDown to select next sample (if multiple samples are loaded)
+    - W to save current sample to file
+    - M to swap hands (In case the hands are inverted)
+      """)
+
 while run:
+    sample: DataSample2 = samples[selected_sample][0]
     frame %= len(sample.gestures)
-    print(f"\r\033[Kframe: {frame + 1}/{len(sample.gestures)}", end="")
+    print(f"\r\033[Kframe: {frame + 1}/{len(sample.gestures)}, Sample: {selected_sample}/{len(samples)} [{samples[selected_sample][1]}]", end="")
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             run = False
@@ -130,6 +154,14 @@ while run:
             if event.key == pygame.K_r:
                 rot_x = 0
                 rot_y = 0
+            if event.key == pygame.K_PAGEUP:
+                selected_sample = (selected_sample - 1) % len(samples)
+            if event.key == pygame.K_PAGEDOWN:
+                selected_sample = (selected_sample + 1) % len(samples)
+            if event.key == pygame.K_w:
+                sample.to_json_file(samples[selected_sample][1])
+            if event.key == pygame.K_m:
+                sample.swap_hands()
 
     if pygame.key.get_pressed()[pygame.K_LEFT]:
         rot_y -= 0.2 * BASE_FPS / FPS
