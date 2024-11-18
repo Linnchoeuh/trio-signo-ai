@@ -54,7 +54,14 @@ class ModelInfo(TrainDataInfo):
         with open(file_path, 'w', encoding="utf-8") as f:
             json.dump(self.to_dict(), f, ensure_ascii=False, indent=indent)
 
-
+@dataclass
+class ModelEpochResult:
+    model_instance: 'SignRecognizerV1'
+    train_loss: float
+    validation_loss: float
+    loss_diff: float
+    mean_loss: float
+    epoch: int
 
 class SignRecognizerV1(nn.Module):
     def __init__(self, model_info: ModelInfo):
@@ -113,7 +120,8 @@ class SignRecognizerV1(nn.Module):
         probabilities = F.softmax(logits, dim=0)
         return torch.argmax(probabilities, dim=0).item()
 
-    def trainModel(self, train_data: TrainData, num_epochs: int = 20) -> str:
+    def trainModel(self, train_data: TrainData2, num_epochs: int = 20, validation_data: TrainData2 = None) -> str:
+        model_epochs: list[ModelEpochResult] = []
         class CustomDataset(Dataset):
             def __init__(self, input: list[list[float]], output: list[int], model_input_neuron: int):
                 if len(input) != len(output):
@@ -122,6 +130,7 @@ class SignRecognizerV1(nn.Module):
                 self.input: list[list[float]] = input
                 self.output: list[int] = output
                 self.model_input_neuron = model_input_neuron
+                # print(len(input), len(output))
 
             def __len__(self):
                 return len(self.input)
@@ -137,6 +146,9 @@ class SignRecognizerV1(nn.Module):
 
         dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.info.layers[0])
         dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        if validation_data is not None:
+            validation_set = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
+            validation_dataloader = DataLoader(validation_set, batch_size=64, shuffle=True)
 
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=0.001)
@@ -150,5 +162,34 @@ class SignRecognizerV1(nn.Module):
                 loss.backward()
                 optimizer.step()
 
-            # print(outputs)
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}', end="")
+            if validation_data is not None:
+                validation_loss = None
+                for inputs, labels in validation_dataloader:
+                    outputs = self(inputs)
+                    validation_loss = criterion(outputs, labels)
+
+                print(f', Validation Loss: {validation_loss.item():.4f}', end="")
+
+            loss_diff: float = abs(loss.item() - (validation_loss.item() if validation_loss is not None else 0))
+            mean_loss: float = (loss.item() + (validation_loss.item() if validation_loss is not None else loss.item())) / 2
+
+            print(f", Loss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
+
+            model_epochs.append(ModelEpochResult(copy.deepcopy(self), loss.item(),
+                                                 validation_loss.item() if validation_loss is not None else None,
+                                                 loss_diff, mean_loss, epoch+1))
+
+        model_epochs.sort(key=lambda x: x.loss_diff)
+        # print(model_epochs)
+        while len(model_epochs) > 5:
+            model_epochs.pop(-1)
+        for model_epoch in model_epochs:
+            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        model_epochs.sort(key=lambda x: x.validation_loss)
+        print("-----")
+        for model_epoch in model_epochs:
+            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        # print(model_epochs)
+        print("Model Epoch Picked:", model_epochs[0].epoch)
+        self = model_epochs[0].model_instance

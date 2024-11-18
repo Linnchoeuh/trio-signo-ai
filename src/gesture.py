@@ -90,13 +90,18 @@ class ActiveGestures(Gestures[bool | None]):
         if not isinstance(gestures_to_set, list):
             gestures_to_set = [gestures_to_set]
 
+        # print("===", gestures_to_set)
+
         self.resetActiveGestures()
 
         for gesture in gestures_to_set:
+            # print("---")
             for field_name in FIELDS:
                 field_data = getattr(gesture, field_name)
+                # print("x>", field_name, getattr(self, field_name))
                 if field_data is not None:
                     setattr(self, field_name, field_data)
+                # print("=>", field_name, getattr(self, field_name))
         return self
 
     def setFieldsTo(self, value, valid_fields: list[str] = None) -> "ActiveGestures":
@@ -107,7 +112,7 @@ class ActiveGestures(Gestures[bool | None]):
         return self
 
     def resetActiveGestures(self, valid_fields: list[str] = None) -> "ActiveGestures":
-        return self.setFieldsTo(self, valid_fields)
+        return self.setFieldsTo(None, valid_fields)
 
     def activateAllGesture(self, valid_fields: list[str] = None) -> "ActiveGestures":
         return self.setFieldsTo(True, valid_fields)
@@ -121,6 +126,9 @@ class ActiveGestures(Gestures[bool | None]):
             if getattr(self, field_name):
                 active_fields.append(field_name)
         return active_fields
+
+    def to_dict(self) -> dict[str, bool]:
+        return self.__dict__
 
 LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
     l_wrist=True,
@@ -176,6 +184,7 @@ RIGHT_HAND_POSITION: ActiveGestures = ActiveGestures(
     r_hand_position=True
 )
 RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION])
+
 HANDS_POINTS: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, RIGHT_HAND_POINTS])
 HANDS_POSITION: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_POSITION])
 
@@ -462,32 +471,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         # Mirroring the hand make the hand become the opposite hand
         # This if statement will swap the left hand and right hand data
         if (x + y + z) % 2 == 1:
-            self.r_wrist, self.l_wrist = self.l_wrist, self.r_wrist
-
-            self.r_thumb_cmc, self.l_thumb_cmc = self.l_thumb_cmc, self.r_thumb_cmc
-            self.r_thumb_mcp, self.l_thumb_mcp = self.l_thumb_mcp, self.r_thumb_mcp
-            self.r_thumb_ip, self.l_thumb_ip = self.l_thumb_ip, self.r_thumb_ip
-            self.r_thumb_tip, self.l_thumb_tip = self.l_thumb_tip, self.r_thumb_tip
-
-            self.r_index_mcp, self.l_index_mcp = self.l_index_mcp, self.r_index_mcp
-            self.r_index_pip, self.l_index_pip = self.l_index_pip, self.r_index_pip
-            self.r_index_dip, self.l_index_dip = self.l_index_dip, self.r_index_dip
-            self.r_index_tip, self.l_index_tip = self.l_index_tip, self.r_index_tip
-
-            self.r_middle_mcp, self.l_middle_mcp = self.l_middle_mcp, self.r_middle_mcp
-            self.r_middle_pip, self.l_middle_pip = self.l_middle_pip, self.r_middle_pip
-            self.r_middle_dip, self.l_middle_dip = self.l_middle_dip, self.r_middle_dip
-            self.r_middle_tip, self.l_middle_tip = self.l_middle_tip, self.r_middle_tip
-
-            self.r_ring_mcp, self.l_ring_mcp = self.l_ring_mcp, self.r_ring_mcp
-            self.r_ring_pip, self.l_ring_pip = self.l_ring_pip, self.r_ring_pip
-            self.r_ring_dip, self.l_ring_dip = self.l_ring_dip, self.r_ring_dip
-            self.r_ring_tip, self.l_ring_tip = self.l_ring_tip, self.r_ring_tip
-
-            self.r_pinky_mcp, self.l_pinky_mcp = self.l_pinky_mcp, self.r_pinky_mcp
-            self.r_pinky_pip, self.l_pinky_pip = self.l_pinky_pip, self.r_pinky_pip
-            self.r_pinky_dip, self.l_pinky_dip = self.l_pinky_dip, self.r_pinky_dip
-            self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
+            self.swap_hands()
         return self
 
     def rotate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -523,4 +507,42 @@ class DataGestures(Gestures[list[float, float, float] | None]):
             field_value[1] += y
             field_value[2] += z
             setattr(self, field_name, field_value)
+        return self
+
+    def swap_hands(self) -> "DataGestures":
+        """Should not be used.<br>
+        This function is used to swap the left hand and right hand data,
+        in case the hands are mirrored or the data is not in the right order.
+
+        Returns:
+            DataGestures: _description_
+        """
+
+        self.r_wrist, self.l_wrist = self.l_wrist, self.r_wrist
+
+        self.r_thumb_cmc, self.l_thumb_cmc = self.l_thumb_cmc, self.r_thumb_cmc
+        self.r_thumb_mcp, self.l_thumb_mcp = self.l_thumb_mcp, self.r_thumb_mcp
+        self.r_thumb_ip, self.l_thumb_ip = self.l_thumb_ip, self.r_thumb_ip
+        self.r_thumb_tip, self.l_thumb_tip = self.l_thumb_tip, self.r_thumb_tip
+
+        self.r_index_mcp, self.l_index_mcp = self.l_index_mcp, self.r_index_mcp
+        self.r_index_pip, self.l_index_pip = self.l_index_pip, self.r_index_pip
+        self.r_index_dip, self.l_index_dip = self.l_index_dip, self.r_index_dip
+        self.r_index_tip, self.l_index_tip = self.l_index_tip, self.r_index_tip
+
+        self.r_middle_mcp, self.l_middle_mcp = self.l_middle_mcp, self.r_middle_mcp
+        self.r_middle_pip, self.l_middle_pip = self.l_middle_pip, self.r_middle_pip
+        self.r_middle_dip, self.l_middle_dip = self.l_middle_dip, self.r_middle_dip
+        self.r_middle_tip, self.l_middle_tip = self.l_middle_tip, self.r_middle_tip
+
+        self.r_ring_mcp, self.l_ring_mcp = self.l_ring_mcp, self.r_ring_mcp
+        self.r_ring_pip, self.l_ring_pip = self.l_ring_pip, self.r_ring_pip
+        self.r_ring_dip, self.l_ring_dip = self.l_ring_dip, self.r_ring_dip
+        self.r_ring_tip, self.l_ring_tip = self.l_ring_tip, self.r_ring_tip
+
+        self.r_pinky_mcp, self.l_pinky_mcp = self.l_pinky_mcp, self.r_pinky_mcp
+        self.r_pinky_pip, self.l_pinky_pip = self.l_pinky_pip, self.r_pinky_pip
+        self.r_pinky_dip, self.l_pinky_dip = self.l_pinky_dip, self.r_pinky_dip
+        self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
+
         return self

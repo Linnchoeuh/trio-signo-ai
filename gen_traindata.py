@@ -55,7 +55,7 @@ def print_progression(dataset_labels: list[str], label_id: int,
         f"Remain time: {remaining_time_str} {completed_cycle}/{total_cycle}", end="")
 
 
-def create_subset(sample: DataSample2, nb_frame: int, null_set: str = None, active_points: ActiveGestures = None) -> list[DataSample2]:
+def create_subset(sample: DataSample2, nb_frame: int, data_samples: dict[str, list[DataSample2]], null_set: str = None, active_points: ActiveGestures = None) -> list[DataSample2]:
     sub_sample: deque[DataSample2] = deque()
 
     initial_samples: list[DataSample2] = [sample]
@@ -67,13 +67,13 @@ def create_subset(sample: DataSample2, nb_frame: int, null_set: str = None, acti
     for samp in initial_samples:
         # Be careful those function randomize undefined (set to None) points
         if len(sample.gestures) == 1:
-            sub_sample.extend(gen_static_data(samp, nb_frame, null_set, active_points))
+            sub_sample.extend(gen_static_data(samp, nb_frame, data_samples, null_set, active_points))
         else:
             sub_sample.extend(gen_dynamic_data(samp, nb_frame, null_set, active_points))
 
-    # Randomize all point that are not defined
-    for samp in sub_sample:
-        samp.setNonePointsRandomlyToRandomOrZero()
+    # # Randomize all point that are not defined
+    # for samp in sub_sample:
+    #     samp.setNonePointsRandomlyToRandomOrZero()
 
     # Create pure non valid data
     if null_set is not None:
@@ -103,6 +103,24 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
         answer = input("Do you want to continue? (y/n): ")
         if answer == "n":
             exit(0)
+
+def load_datasamples(dataset_labels: list[str], memory_frame: int) -> dict[str, list[DataSample2]]:
+    data_samples: dict[str, list[DataSample2]] = {}
+    for label_name in dataset_labels:
+        label_path: str = f"{DATASETS_DIR}/{label_name}"
+        dataset_samples = os.listdir(label_path)
+        data_samples[label_name] = []
+
+        for dataset_sample in dataset_samples:
+            try:
+                sample: DataSample2 = DataSample2.from_json_file(f"{label_path}/{dataset_sample}")
+                sample.label = label_name
+                if len(sample.gestures) > memory_frame:
+                    sample.reframe(memory_frame)
+                data_samples[label_name].append(sample)
+            except Exception as e:
+                print(f"\nError: {dataset_sample} is not a valid json file. {e}")
+    return data_samples
 
 def main():
     i = 1
@@ -166,44 +184,49 @@ def main():
 
     train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
 
-    start_time = time.time()
-    total_cycle = 0
-    for label_id in range(len(dataset_labels)):
-        dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
-        total_cycle += len(dataset_samples) * total_subsets
+    print("Loading samples into memory...", end=" ")
+    data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame)
+    print("[DONE]")
+    total_cycle = sum([len(samples) for samples in data_samples.values()]) * total_subsets
     completed_cycle = 0
 
     subset: int = 0
-    for label_id in range(len(dataset_labels)):
+    start_time = time.time()
+    for label, samples in data_samples.items():
 
-        treated_sample = 0
-        dataset_samples = os.listdir(f"{DATASETS_DIR}/{dataset_labels[label_id]}")
-        label_total_samples = len(dataset_samples)
+        treated_sample: int = 0
+        label_id: int = train_data.info.label_map[label]
+        label_total_samples: int = len(samples)
 
-        for dataset_sample in dataset_samples:
-            try:
-                data_sample: DataSample2 = DataSample2.from_json_file(f"{DATASETS_DIR}/{dataset_labels[label_id]}/{dataset_sample}")
-            except Exception as e:
-                print(f"\nError: {dataset_sample} is not a valid json file. {e}")
-                continue
+        print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                          subset, total_subsets, train_data.sample_count,
+                          start_time, completed_cycle, total_cycle)
 
+        for sample in samples:
 
-            if len(data_sample.gestures) > nb_frame: # Ensure the sample is not too long for the target memeory frame
-                data_sample.reframe(nb_frame)
-            data_sample.label = dataset_labels[label_id] # Ensure the label is correct
-            train_data.add_data_sample(data_sample)
+            train_data.add_data_sample(sample)
 
             subset = 0
             while subset < total_subsets:
-                print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-                train_data.add_data_samples(create_subset(data_sample, nb_frame, null_set, active_gesture))
+                print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                                  subset, total_subsets, train_data.sample_count,
+                                  start_time, completed_cycle, total_cycle)
+                train_data.add_data_samples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
                 completed_cycle += 1
                 subset += 1
 
-            print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
             treated_sample += 1
-        print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
-    print_progression(dataset_labels, label_id, treated_sample, label_total_samples, subset, total_subsets, train_data.sample_count, start_time, completed_cycle, total_cycle)
+            print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                              subset, total_subsets, train_data.sample_count,
+                              start_time, completed_cycle, total_cycle)
+
+        print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                          subset, total_subsets, train_data.sample_count,
+                          start_time, completed_cycle, total_cycle)
+
+    print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                      subset, total_subsets, train_data.sample_count,
+                      start_time, completed_cycle, total_cycle)
 
     train_data.getNumberOfSamples()
     print()
