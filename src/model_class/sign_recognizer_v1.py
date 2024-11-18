@@ -1,52 +1,117 @@
+import json
+import time
+import os
+import glob
+from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
-import json
-import time
-import os
-from dataclasses import dataclass
-
-from mediapipe.tasks.python.components.containers.landmark import Landmark
 
 from src.datasample import *
 
 @dataclass
-class ModelInfoV1:
-    labels: list[str]
-    memory_frame: int
-    model_version: str = "v1"
-    model_name: str = ""
+class ModelInfo(TrainDataInfo):
+    layers: list[int]
+    name: str
+    mode_arch: str = "v1"
 
-def get_label_name_file(model_name: str) -> str:
-    if model_name.endswith('.pth'):
-        model_name = model_name[:-4]
-    model_name += '_labels.json'
-    return model_name
+    @classmethod
+    def build(cls, nb_of_memory_frame: int, active_gestures: ActiveGestures, output_labels: list[str], intermediate_layers: list[int] = [128, 64], name: str = None) -> 'ModelInfo':
+        if name is None:
+            name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
+        layers: list[int] = [nb_of_memory_frame * len(active_gestures.getActiveFields()) * 3] + intermediate_layers + [len(output_labels)]
+        label_map: dict[str, int] = {label: i for i, label in enumerate(output_labels)}
+        return cls(
+            labels=output_labels,
+            label_map=label_map,
+            memory_frame=nb_of_memory_frame,
+            active_gestures=active_gestures,
+            layers=layers,
+            name=name
+        )
+
+    @classmethod
+    def from_dict(cls, data: dict) -> 'ModelInfo':
+        data["active_gestures"] = ActiveGestures(**data["active_gestures"])
+        return cls(**data)
+
+    @classmethod
+    def from_json_file(cls, file_path: str) -> 'ModelInfo':
+        with open(file_path, 'r', encoding="utf-8") as f:
+            return cls.from_dict(json.load(f))
+
+    def to_dict(self):
+        _dict: dict = super(ModelInfo, self).to_dict()
+        _dict["layers"] = self.layers
+        _dict["name"] = self.name
+        _dict["mode_arch"] = self.mode_arch
+        return _dict
+
+    def to_json_file(self, file_path: str, indent: int = 4):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, ensure_ascii=False, indent=indent)
+
+@dataclass
+class ModelEpochResult:
+    model_instance: 'SignRecognizerV1'
+    train_loss: float
+    validation_loss: float
+    loss_diff: float
+    mean_loss: float
+    epoch: int
 
 class SignRecognizerV1(nn.Module):
-    def __init__(self, output_size: int, nb_of_memory_frame: int):
+    def __init__(self, model_info: ModelInfo):
         super(SignRecognizerV1, self).__init__()
-        self.input_neurons = nb_of_memory_frame * NEURON_CHUNK
-        print(self.input_neurons)
-        self.fc1 = nn.Linear(self.input_neurons, 128)
-        self.fc2 = nn.Linear(128, 64)
-        self.fc3 = nn.Linear(64, output_size)
+
+        self.info = model_info
+        self.fcs = nn.ModuleList()
+
+        for i in range(len(model_info.layers) - 1):
+            self.fcs.append(nn.Linear(model_info.layers[i], model_info.layers[i+1]))
+
+    @classmethod
+    def loadModelFromDir(cls, model_dir: str):
+        json_files = glob.glob(f"{model_dir}/*.json")
+        if len(json_files) == 0:
+            raise FileNotFoundError(f"No .json file found in {model_dir}")
+        cls = SignRecognizerV1(ModelInfo.from_json_file(json_files[0]))
+
+        pth_files = glob.glob(f"{model_dir}/*.pth")
+        if len(pth_files) == 0:
+            raise FileNotFoundError(f"No .pth file found in {model_dir}")
+        cls.loadPthFile(pth_files[0])
+
+        return cls
+
+    def loadPthFile(self, model_path):
+        self.load_state_dict(torch.load(model_path))
+
+    def saveModel(self, model_name: str = None):
+        if model_name is None:
+            model_name = self.info.name
+        if model_name.endswith(".pth"):
+            model_name = model_name[:-4]
+        if model_name.endswith(".json"):
+            model_name = model_name[:-5]
+
+        os.makedirs(model_name, exist_ok=True)
+        full_name = f"{model_name}/{model_name}"
+        torch.save(self.state_dict(), full_name + ".pth")
+        self.info.to_json_file(full_name + ".json")
 
     def forward(self, x):
-        x = torch.relu(self.fc1(x))
-        x = torch.relu(self.fc2(x))
-        x = self.fc3(x)
-        return x
-
-    def loadModel(self, model_path):
-        self.load_state_dict(torch.load(model_path))
+        for i in range(len(self.fcs) - 1):
+            x = torch.relu(self.fcs[i](x))
+        return self.fcs[-1](x)
 
     def use(self, input: list[float]):
         # for i in range(len(input)):
         #     input[i] = round(input[i], 3)
-        while len(input) < self.input_neurons:
+        while len(input) < self.info.layers[0]:
             input.append(0)
         self.eval()
         input_tensor = torch.tensor(input, dtype=torch.float32)
@@ -55,7 +120,8 @@ class SignRecognizerV1(nn.Module):
         probabilities = F.softmax(logits, dim=0)
         return torch.argmax(probabilities, dim=0).item()
 
-    def trainModel(self, train_data: TrainData, num_epochs: int = 20) -> str:
+    def trainModel(self, train_data: TrainData2, num_epochs: int = 20, validation_data: TrainData2 = None) -> str:
+        model_epochs: list[ModelEpochResult] = []
         class CustomDataset(Dataset):
             def __init__(self, input: list[list[float]], output: list[int], model_input_neuron: int):
                 if len(input) != len(output):
@@ -64,6 +130,7 @@ class SignRecognizerV1(nn.Module):
                 self.input: list[list[float]] = input
                 self.output: list[int] = output
                 self.model_input_neuron = model_input_neuron
+                # print(len(input), len(output))
 
             def __len__(self):
                 return len(self.input)
@@ -77,8 +144,11 @@ class SignRecognizerV1(nn.Module):
                 label_tensor = torch.tensor(self.output[idx], dtype=torch.long)
                 return input_tensor, label_tensor
 
-        dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.input_neurons)
+        dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.info.layers[0])
         dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        if validation_data is not None:
+            validation_set = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
+            validation_dataloader = DataLoader(validation_set, batch_size=64, shuffle=True)
 
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.parameters(), lr=0.001)
@@ -92,32 +162,34 @@ class SignRecognizerV1(nn.Module):
                 loss.backward()
                 optimizer.step()
 
-            # print(outputs)
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}')
+            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}', end="")
+            if validation_data is not None:
+                validation_loss = None
+                for inputs, labels in validation_dataloader:
+                    outputs = self(inputs)
+                    validation_loss = criterion(outputs, labels)
 
+                print(f', Validation Loss: {validation_loss.item():.4f}', end="")
 
-    def saveModel(self, train_data: TrainData, model_name: str = None):
-        if model_name is None:
-            model_name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
-        else:
-            if model_name.endswith(".pth"):
-                model_name = model_name[:-4]
-            if model_name.endswith(".json"):
-                model_name = model_name[:-5]
+            loss_diff: float = abs(loss.item() - (validation_loss.item() if validation_loss is not None else 0))
+            mean_loss: float = (loss.item() + (validation_loss.item() if validation_loss is not None else loss.item())) / 2
 
-        os.makedirs(model_name, exist_ok=True)
-        full_name = f"{model_name}/{model_name}"
+            print(f", Loss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
 
-        torch.save(self.state_dict(), full_name + ".pth")
-        with open(get_label_name_file(full_name), 'w', encoding="utf-8") as f:
-            json.dump(ModelInfoV1(train_data.info.labels, train_data.info.memory_frame, model_name=model_name).__dict__, f, ensure_ascii=False, indent=4)
+            model_epochs.append(ModelEpochResult(copy.deepcopy(self), loss.item(),
+                                                 validation_loss.item() if validation_loss is not None else None,
+                                                 loss_diff, mean_loss, epoch+1))
 
-    # def add_frame(self, hand_landmark: HandLandmarkerResult):
-    #     try:
-    #         sample: DataSample = DataSample.from_handlandmarker(hand_landmark)
-    #         self.input_data += sample.samples_to_1d_array()
-    #     except:
-    #         for i in range(NEURON_CHUNK):
-    #             self.input_data.append(0)
-    #     while len(self.input_data) > self.input_neurons:
-    #         self.input_data.pop(0)
+        model_epochs.sort(key=lambda x: x.loss_diff)
+        # print(model_epochs)
+        while len(model_epochs) > 5:
+            model_epochs.pop(-1)
+        for model_epoch in model_epochs:
+            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        model_epochs.sort(key=lambda x: x.validation_loss)
+        print("-----")
+        for model_epoch in model_epochs:
+            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        # print(model_epochs)
+        print("Model Epoch Picked:", model_epochs[0].epoch)
+        self = model_epochs[0].model_instance

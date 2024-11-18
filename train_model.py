@@ -21,7 +21,7 @@ parser.add_argument(
     default='v1')
 parser.add_argument(
     '--memory_frame',
-    help='Number of frame in the past the model will see',
+    help='Number of frame in the past the model will see (Default: None (Maximum possible frame in the past the trainset have))',
     required=False,
     default=None)
 parser.add_argument(
@@ -32,21 +32,28 @@ parser.add_argument(
 
 args: argparse.Namespace = parser.parse_args()
 
-train_data: TrainData = TrainData.from_cbor_file(args.trainset)
+train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
 
-memory_frame: int = args.memory_frame
-if memory_frame is None:
-    memory_frame = train_data.info.memory_frame
-else:
-    memory_frame = int(memory_frame)
+memory_frame: int = train_data.info.memory_frame
+if args.memory_frame is not None and int(args.memory_frame) <= memory_frame:
+    memory_frame = int(args.memory_frame)
 
 
 
 match args.arch:
     case 'v1':
-        model = SignRecognizerV1(len(train_data.info.labels), memory_frame)
-        model.trainModel(train_data)
-        model.saveModel(train_data, args.name)
+        model = SignRecognizerV1(ModelInfo.build(
+            memory_frame,
+            train_data.info.active_gestures,
+            train_data.info.labels,
+            name=args.name,
+            intermediate_layers=[32]))
+        validation_data: TrainData2 = None
+        train_data, validation_data = train_data.split_trainset(0.8)
+        # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())
+
+        model.trainModel(train_data, validation_data=validation_data)
+        model.saveModel()
 
     case _:
         raise ValueError(f"Model architecture {args.arch} not found.")
