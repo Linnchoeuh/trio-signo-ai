@@ -1,11 +1,14 @@
+import copy
+import math
+import json
+import random
 from dataclasses import dataclass, fields
 from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.landmark import *
 from src.rot_3d import *
-import random
-import math
-import json
 import cbor2
+
+from src.gesture import *
 
 def clamp(value, min_value, max_value):
     return max(min_value, min(value, max_value))
@@ -97,26 +100,26 @@ class GestureData:
             raw_coords += attr
         return raw_coords
 
+
+
 @dataclass
 class DataSample:
     label: str
     gestures: list[GestureData]
     label_id: int | None = None
     framerate: int = 30
-    mirrorable: bool = True
 
     @classmethod
     def from_json(cls, json_data: dict, label_id: int = None):
         if label_id is None:
-            label_id = json_data.get("label_id", None)
+            label_id = json_data['label_id']
         framerate = 30
-        framerate: bool = json_data.get("framerate", 30)
-        mirrorable: bool = json_data.get("mirrorable", True)
+        if json_data.get("framerate") is not None:
+            framerate = json_data['framerate']
         return cls(
             label=json_data['label'],
             label_id=label_id,
             framerate=framerate,
-            mirrorable=mirrorable,
             gestures=[GestureData(**gesture) for gesture in json_data['gestures']]
         )
 
@@ -137,8 +140,7 @@ class DataSample:
     def to_json(self):
         return {
             'label': self.label,
-            'framerate': self.framerate,
-            'mirrorable': self.mirrorable,
+            'label_id': self.label_id,
             'gestures': [gesture.__dict__ for gesture in self.gestures]
         }
 
@@ -275,31 +277,182 @@ class DataSample:
                 setattr(self.gestures[i], field.name, field_value)
         return self
 
+@dataclass
+class DataSample2:
+    label: str
+    gestures: list[DataGestures]
+    framerate: int = 30
+    # This attribute tells the trainset generator if the sample can be mirrored, put it to false if the gesture is not symmetrical (e.g z french sign)
+    mirrorable: bool = True
+
+    @classmethod
+    def from_dict(cls, json_data: dict):
+        tmp = cls(label=json_data['label'],
+                  gestures=[DataGestures(**gesture) for gesture in json_data['gestures']])
+        tmp.framerate = json_data.get('framerate', tmp.framerate)
+        tmp.mirrorable = json_data.get('mirrorable', tmp.mirrorable)
+        return tmp
+
+    @classmethod
+    def from_json_file(cls, file_path: str, label_id: int = None):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_dict(data)
+
+    def to_dict(self):
+        tmp: dict = copy.deepcopy(self).__dict__
+        tmp['gestures'] = [gesture.__dict__ for gesture in self.gestures]
+        return tmp
+
+    def to_json_file(self, file_path: str, indent: bool = False):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=indent)
+
+    def insert_gesture_from_landmarks(self, position: int, hand_landmarks: HandLandmarkerResult):
+        self.gestures.insert(position, DataGestures.buildFromHandLandmarkerResult(hand_landmarks))
+
+    def samples_to_1d_array(self, valid_fields: list[str] | None = None) -> list[float]:
+        raw_data = []
+        for gesture in self.gestures:
+            raw_data.extend(gesture.get1DArray(valid_fields))
+        return raw_data
+
+    def setNonePointsRandomlyToRandomOrZero(self, proba: float = 0.1) -> 'DataSample2':
+        for gest in self.gestures:
+            gest.setNonePointsRandomlyToRandomOrZero(proba)
+
+    def noise_sample(self, range: float = 0.005, valid_fields: list[str] = None) -> 'DataSample2':
+        """Will randomize the sample gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.
+
+        Args:
+            range (float, optional): Random value will be between -range and range. Defaults to 0.005.
+            valid_fields (list[str], optional): Let you pick which fields should be randomized. Defaults to None (All point affected).
+
+        Returns:
+            DataSample2: Return this class instance for chaining
+        """
+        for gesture in self.gestures:
+            gesture.noise(range, valid_fields)
+        return self
+
+    def mirror_sample(self, x: bool = True, y: bool = False, z: bool = False) -> 'DataSample2':
+        for gesture in self.gestures:
+            gesture.mirror(x, y, z)
+        return self
+
+    def rotate_sample(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] = None) -> 'DataSample2':
+        for gesture in self.gestures:
+            gesture.rotate(x, y, z, valid_fields)
+        return self
+
+    def scale_sample(self, x: float = 1, y: float = 1, z: float = 1, valid_fields: list[str] = None) -> 'DataSample2':
+        for gesture in self.gestures:
+            gesture.scale(x, y, z, valid_fields)
+        return self
+
+    def translate_sample(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] = None) -> 'DataSample2':
+        for gesture in self.gestures:
+            gesture.translate(x, y, z, valid_fields)
+        return self
+
+    def reframe(self, target_frame: int) -> 'DataSample2':
+        """Change the number of frame to execute the full gesture sequence
+        Be careful, if frame are reducedn reincresing the frame will not restore the original gesture
+
+        Args:
+            frame (int): Target frame number
+        """
+        if target_frame <= 1:
+            raise ValueError("Target frame must be greater than 1")
+
+        def list_lerp(a: list[float, float, float], b: list[float, float, float], t):
+            if a is None or b is None:
+                return None
+            return [a[i] + (b[i] - a[i]) * t for i in range(len(a))]
+
+        new_gestures: list[GestureData] = []
+
+        for i in range(target_frame):
+            progression = i / (target_frame - 1)
+            frame_scaled_value = min(progression * (len(self.gestures) - 1), len(self.gestures) - 1)
+            # print(i, frame_scaled_value, len(self.gestures))
+            start_frame = math.floor(frame_scaled_value)
+            end_frame = math.ceil(frame_scaled_value)
+            interpolation_coef = frame_scaled_value - start_frame
+
+            new_gesture: DataGestures = DataGestures()
+
+            for field in fields(new_gesture):
+                setattr(new_gesture, field.name, list_lerp(getattr(self.gestures[start_frame], field.name), getattr(self.gestures[end_frame], field.name), interpolation_coef))
+
+            new_gestures.append(new_gesture)
+
+        self.gestures = new_gestures
+        # print(self.gestures)
+        return self
+
+    def set_sample_gestures_point_to(self, point_field_name: str, value: list[float]) -> 'DataSample2':
+        for gesture in self.gestures:
+            setattr(gesture, point_field_name, value)
+        return self
+
+    def swap_hands(self) -> 'DataSample2':
+        """Should not be used.<br>
+        This function is used to swap the left hand and right hand data,
+        in case the hands are mirrored or the data is not in the right order.
+
+        Returns:
+            DataSample2: _description_
+        """
+        for gesture in self.gestures:
+            gesture.swap_hands()
+        return self
 
 @dataclass
 class TrainDataInfo:
     labels: list[str]
     label_map: dict[str, int]
     memory_frame: int
+    active_gestures: ActiveGestures
 
-    def __init__(self, labels: list[str], memory_frame: int, label_map: dict[str, int] = None):
+
+    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None):
         self.labels = labels
         self.memory_frame = memory_frame
+        self.active_gestures = active_gestures
+        self.label_map = label_map
 
-        if label_map is None:
+
+        if self.label_map is None:
             self.label_map = {label: i for i, label in enumerate(labels)}
         else:
             for label in labels:
-                if label not in label_map:
+                if label not in self.label_map:
                     raise ValueError(f"Label {label} not found in label_map")
 
     @classmethod
     def from_dict(cls, data: dict):
+        active_gest_dict: dict = data.get('active_gestures', None)
+        active_gest: ActiveGestures = None
+        if active_gest_dict is not None:
+            active_gest = ActiveGestures(**active_gest_dict)
         return cls(
             labels=data['labels'],
-            label_map=data['label_map'],
-            memory_frame=data['memory_frame']
+            memory_frame=data['memory_frame'],
+            active_gestures=active_gest,
+            label_map=data.get('label_map', None),
         )
+
+    def to_dict(self):
+        active_gestures = self.active_gestures
+        if self.active_gestures is not None:
+            active_gestures = self.active_gestures.to_dict()
+        return {
+            'labels': self.labels,
+            'memory_frame': self.memory_frame,
+            'active_gestures': active_gestures,
+            'label_map': self.label_map
+        }
 
 @dataclass
 class TrainData:
@@ -310,7 +463,6 @@ class TrainData:
     def __init__(self, info: TrainDataInfo, samples: list[set[list[float]]] = None):
         self.info = info
 
-        self.test = set()
         if samples is not None:
             self.samples = samples
         else:
@@ -372,7 +524,6 @@ class TrainData:
 
         self.samples[self.info.label_map[label]].add(tuple(data_sample.samples_to_1d_array()))
         self.sample_count += 1
-        pass
 
     def add_data_samples(self, data_samples: list[DataSample]):
         for data_sample in data_samples:
@@ -393,3 +544,165 @@ class TrainData:
         for i in range(len(self.samples)):
             labels += [i] * len(self.samples[i])
         return labels
+
+class TrainData2:
+    info: TrainDataInfo
+    samples: list[set[tuple[int, tuple[float]]]] # (label)list[(gesture)set[(datasample)tuple[(id)int, (frames)tuple[float]]]]
+    # samples: list[set[tuple[float]]] # (label)list[(gesture)set[(datasample)tuple[float]]]
+    sample_count: int
+
+    def __init__(self, info: TrainDataInfo, samples: list[set[tuple[float]]] = None):
+        self.info = info
+
+        self.valid_fields: list[str] = info.active_gestures.getActiveFields()
+        if samples is not None:
+            if len(samples) != len(info.labels):
+                raise ValueError("Samples length does not match the number of labels")
+            self.samples = samples
+        else:
+            self.samples = []
+            while len(self.samples) < len(info.labels):
+                self.samples.append(set())
+        self.sample_count = sum([len(label_samples) for label_samples in self.samples])
+
+    @classmethod
+    def from_dict(cls, json_data):
+
+        sample_count: int = 0
+        samples: list[set[tuple[int, tuple[float]]]] = []
+        dict_sample: list[list[list[float]]] = json_data['samples']
+
+        for sample_label_id in range(len(dict_sample)):
+            # Create the "list[set]" part
+            samples.append(set())
+            for sample in dict_sample[sample_label_id]:
+                # Create the "tuple[int, tuple[float]]" part and add it to the appropriated "set"
+                samples[-1].add((sample_count, tuple(sample)))
+                # samples[-1].add(tuple(sample))
+
+                sample_count += 1
+
+        return cls(
+            info=TrainDataInfo.from_dict(json_data['info']),
+            samples=samples
+        )
+
+    @classmethod
+    def from_json_file(cls, file_path: str):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.from_dict(data)
+
+    @classmethod
+    def from_cbor(cls, cbor_data):
+        return cls.from_dict(cbor2.loads(cbor_data))
+
+    @classmethod
+    def from_cbor_file(cls, file_path: str):
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        return cls.from_cbor(data)
+
+    def getNumberOfSamples(self):
+        self.sample_count = 0
+        for i in range(len(self.samples)):
+            self.sample_count += len(self.samples[i])
+        return self.sample_count
+
+    def to_dict(self) -> dict:
+        self.sample_count = self.getNumberOfSamples()
+
+        count: int = 0
+        samples: list[list[list[float]]] = []
+        for i in range(len(self.samples)):
+            # list[list[tuple[int, tuple[float]]]] replaces "set" by "list"
+            samples.append(list(self.samples[i]))
+            for k in range(len(self.samples[i])):
+                # list[list[list[float]]] replaces "tuple[int, tuple[float]]" by "list[float]"
+                # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
+                samples[i][k] = list(samples[i][k][1])
+                # samples[i][k] = list(samples[i][k])
+                count += 1
+        tmp: dict = self.__dict__
+        tmp["info"] = self.info.to_dict()
+        tmp["samples"] = samples
+        return tmp
+
+    def to_json_file(self, file_path: str, indent: int | str | None = 0):
+        with open(file_path, 'w', encoding="utf-8") as f:
+            json.dump(self.to_dict(), f, indent=indent)
+
+    def to_cbor(self) -> bytes:
+        return cbor2.dumps(self.to_dict())
+
+    def to_cbor_file(self, file_path: str):
+        with open(file_path, 'wb') as f:
+            f.write(self.to_cbor())
+
+    def add_data_sample(self, data_sample: DataSample2):
+        # Get or cache label_id
+        label_id = self.info.label_map[data_sample.label]
+
+        # Convert the array to a tuple once
+        sample_data = tuple(data_sample.samples_to_1d_array(self.valid_fields))
+
+        # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
+        self.samples[label_id].add((self.sample_count, sample_data))
+        # self.samples[label_id].add(sample_data)
+
+        # Increment the overall sample count
+        self.sample_count += 1
+
+    def add_data_samples(self, data_samples: list[DataSample2]):
+        for data_sample in data_samples:
+            # print(type(data_sample))
+            self.add_data_sample(data_sample)
+
+    def get_input_data(self) -> list[list[float]]:
+        """Transform the trainset data into a 1 dimension array
+        where each list[float] is a sample
+
+        Returns:
+            list[list[float]]: _description_
+        """
+        samples: list[list[float]] = []
+        for label_sorted_samples in self.samples:
+            for sample in label_sorted_samples: # Get all the sample stored in the "set"
+                # Convert the "tuple[int, tuple[float]]" to "list[float]"
+                # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
+                samples.append(list(sample[1]))
+                # samples.append(list(sample))
+        return samples
+
+    def get_output_data(self) -> list[int]:
+        labels: list[int] = []
+        for i in range(len(self.samples)):
+            labels += [i] * len(self.samples[i])
+        return labels
+
+    def split_trainset(self, ratio: float = 0.8) -> tuple['TrainData2', 'TrainData2']:
+        """Split the trainset into two trainset
+
+        Args:
+            ratio (float, optional): Ratio of the first trainset. Defaults to 0.8.
+
+        Returns:
+            tuple[TrainData2, TrainData2]: The two trainset
+        """
+        trainset1 = TrainData2(info=copy.deepcopy(self.info))
+        trainset2 = TrainData2(info=copy.deepcopy(self.info))
+
+        for i in range(len(self.samples)):
+
+            total_label_samples = len(self.samples[i])
+            label_sample: set[tuple[int, tuple[float]]] = list(self.samples[i])
+
+            while len(label_sample) / total_label_samples > ratio:
+                trainset2.samples[i].add(
+                    label_sample.pop(random.randint(0, len(label_sample) - 1))
+                )
+            trainset1.samples[i] = set(label_sample)
+
+        trainset1.getNumberOfSamples()
+        trainset2.getNumberOfSamples()
+        return trainset1, trainset2

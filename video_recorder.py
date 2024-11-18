@@ -3,12 +3,10 @@ import cv2
 import json
 import argparse
 import numpy as np
-import tkinter as tk
 from datetime import datetime
-from src.datasample import DataSample
+from src.datasample import DataSample, DataSample2
 from src.video_cropper import VideoCropper
-from mediapipe.tasks.python.vision.hand_landmarker import *
-from run_model import load_hand_landmarker, track_hand, draw_land_marks
+from run_model import load_hand_landmarker, track_hand, draw_land_marks, recognize_sign, load_sign_recognizer
 
 ESC = 27
 SPACE = 32
@@ -20,28 +18,44 @@ keys_index = {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': '
               'u': 'u', 'v': 'v', 'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z', '1': '1', '2': '2', '3': '3', '4': '4',
               '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '0'}
 
-save_folder = 'datasets/'
+screenshot_delay = 0  # Delay before saving screenshots
+
+parser = argparse.ArgumentParser(description="Sign recognition with video recording.")
+parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
+parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
+args = parser.parse_args()
+video_label = args.label
+
+# Load models
+print("Loading sign recognition model...")
+sign_rec_model, model_info = load_sign_recognizer(args.model)
+
+print("Loading hand landmarker...")
 handland_marker = load_hand_landmarker(1)
+
+# Video setup
 record = cv2.VideoCapture(0)
 frame_width = int(record.get(3))
 frame_height = int(record.get(4))
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
-output_file = None
 out = None
 
 is_recording = False
 is_croping = False
+remaining_delay = 0
+countdown_active = False
+
+frame_history = DataSample("", [])
+prev_sign = -1
+prev_display = -1
+
+save_folder = 'datasets/'
 
 instructions = """Instructions:
 Space: Record
 Any key: Screenshot
 Tab: Edit
 Esc: Quit"""
-
-parser = argparse.ArgumentParser(description="Video recording with hand detection.")
-parser.add_argument("label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
-args = parser.parse_args()
-video_label = args.label
 
 def create_instruction_image():
     instruction_image = np.zeros((frame_height, 300, 3), dtype=np.uint8)
@@ -64,12 +78,30 @@ while True:
         if not ret:
             print("Video error.")
             break
+        
+        frame = cv2.flip(frame, 1)
+        result, _ = track_hand(frame, handland_marker)
+        frame = draw_land_marks(frame, result)
+
+        frame_history.pushfront_gesture_from_landmarks(result)
+        while len(frame_history.gestures) > model_info.memory_frame:
+            frame_history.gestures.pop(-1)
+
+        recognized_sign, _ = recognize_sign(frame_history, sign_rec_model)
+        text = "undefined"
+
+        if prev_sign != recognized_sign:
+            prev_display = prev_sign
+            prev_sign = recognized_sign
+        if recognized_sign != -1:
+            text = f"{model_info.labels[recognized_sign]} prev({model_info.labels[prev_display]})"
+
+        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+
 
         if is_recording:
             out.write(frame)
-            result, _ = track_hand(frame, handland_marker)
-            data_sample.pushfront_gesture_from_landmarks(result)
-            frame = draw_land_marks(frame, result)
+            data_sample.insert_gesture_from_landmarks(0, result)
             cv2.putText(frame, "Recording...", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
 
         instruction_image = create_instruction_image()
@@ -80,11 +112,12 @@ while True:
         key = cv2.waitKey(1)
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
+        # Record
         if key == SPACE:
             if not is_recording:
                 file_name = video_label + "_" + current_time + ".avi"
                 full_save_path = save_folder + video_label + '/temp'
-                data_sample = DataSample(video_label, [])
+                data_sample = DataSample2(video_label, [])
 
                 if not os.path.exists(full_save_path):
                     os.makedirs(full_save_path)
@@ -112,11 +145,15 @@ while True:
             else:
                 print("Stop recording before quitting.")
 
+        # Screenshots
         for keys in keys_index.keys():
-            if key == ord(keys):
-                image_name = keys_index[keys]
-                full_save_path = save_folder + keys_index[keys] + '/temp'
-                file_name = image_name + "_" + current_time + ".png"
+            if key == ord(keys) and not countdown_active:
+                countdown_active = True
+                remaining_delay = screenshot_delay
+
+                image_label = keys_index[keys]
+                file_name = image_label + "_" + current_time + ".png"
+                full_save_path = save_folder + image_label + '/temp'
 
                 if not os.path.exists(full_save_path):
                     os.makedirs(full_save_path)
@@ -127,16 +164,23 @@ while True:
                         json.dump([], f)
 
                 output_file = os.path.join(full_save_path, file_name)
-                cv2.imwrite(output_file, frame)
-                update_json(label_json_path, {"filename": file_name, "label": image_name})
+                image_sample = DataSample2(image_label, [])
 
-    else:
-        root = tk.Tk()
-        app = VideoCropper(root)
-        root.mainloop()
-        is_croping = False
+        if countdown_active:
+            remaining_delay -= 1 / FPS
+
+            if remaining_delay <= 0:
+                countdown_active = False
+
+                cv2.imwrite(output_file, frame)
+                update_json(label_json_path, {"filename": file_name, "label": image_label})
+
+                result, _ = track_hand(frame, handland_marker)
+                image_sample.insert_gesture_from_landmarks(0, result)
+                image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
+
 
 record.release()
-if out is not None:
+if out:
     out.release()
 cv2.destroyAllWindows()
