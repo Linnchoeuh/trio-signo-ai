@@ -19,13 +19,14 @@ keys_index = {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': '
               'u': 'u', 'v': 'v', 'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z', '1': '1', '2': '2', '3': '3', '4': '4',
               '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '_null'}
 
-screenshot_delay = 0  # Delay before saving screenshots
-
 parser = argparse.ArgumentParser(description="Sign recognition with video recording.")
 parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
 parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
+parser.add_argument("--delay", type=int, default=0, help="Delay in seconds before saving screenshots (default: 0)")
 args = parser.parse_args()
+
 video_label = args.label
+screenshot_delay = args.delay
 
 # Load models
 print("Loading sign recognition model...")
@@ -81,7 +82,7 @@ while True:
             break
 
         og_frame = cv2.flip(frame, 1)
-        frame = copy.deepcopy(og_frame)
+        frame = og_frame.copy()
         result, _ = track_hand(frame, handland_marker)
         frame = draw_land_marks(frame, result)
 
@@ -89,9 +90,7 @@ while True:
         while len(frame_history.gestures) > sign_rec.info.memory_frame:
             frame_history.gestures.pop(-1)
 
-        # frame_history.gestures.reverse()
         recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields())
-        # frame_history.gestures.reverse()
 
         text = "undefined"
 
@@ -100,10 +99,8 @@ while True:
             prev_sign = recognized_sign
         if recognized_sign != -1:
             text = f"{sign_rec.info.labels[recognized_sign]} prev({sign_rec.info.labels[prev_display]})"
-        cv2.putText(frame, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
-        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
-
-
+        cv2.putText(frame, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0, 0, 0), 2, cv2.LINE_AA)
+        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
         if is_recording:
             out.write(frame)
@@ -184,7 +181,6 @@ while True:
                 result, _ = track_hand(og_frame, handland_marker)
                 image_sample.insert_gesture_from_landmarks(0, result)
                 image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
-
 
 record.release()
 if out:
