@@ -47,7 +47,7 @@ match args.arch:
             train_data.info.active_gestures,
             train_data.info.labels,
             name=args.name,
-            intermediate_layers=[32]))
+            intermediate_layers=[64, 64]))
         validation_data: TrainData2 = None
         train_data, validation_data = train_data.split_trainset(0.8)
         # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())

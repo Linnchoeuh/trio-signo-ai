@@ -6,7 +6,8 @@ import numpy as np
 from datetime import datetime
 from src.datasample import DataSample, DataSample2
 from src.video_cropper import VideoCropper
-from run_model import load_hand_landmarker, track_hand, draw_land_marks, recognize_sign, load_sign_recognizer
+from run_model import load_hand_landmarker, track_hand, draw_land_marks, recognize_sign
+from src.model_class.sign_recognizer_v1 import *
 
 ESC = 27
 SPACE = 32
@@ -16,7 +17,7 @@ FPS = 30
 keys_index = {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': 'g', 'h': 'h', 'i': 'i', 'j': 'j',
               'k': 'k', 'l': 'l', 'm': 'm', 'n': 'n', 'o': 'o', 'p': 'p', 'q': 'q', 'r': 'r', 's': 's', 't': 't',
               'u': 'u', 'v': 'v', 'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z', '1': '1', '2': '2', '3': '3', '4': '4',
-              '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '0'}
+              '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '_null'}
 
 screenshot_delay = 0  # Delay before saving screenshots
 
@@ -28,7 +29,7 @@ video_label = args.label
 
 # Load models
 print("Loading sign recognition model...")
-sign_rec_model, model_info = load_sign_recognizer(args.model)
+sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
 
 print("Loading hand landmarker...")
 handland_marker = load_hand_landmarker(1)
@@ -45,7 +46,7 @@ is_croping = False
 remaining_delay = 0
 countdown_active = False
 
-frame_history = DataSample("", [])
+frame_history: DataSample2 = DataSample2("", [])
 prev_sign = -1
 prev_display = -1
 
@@ -78,25 +79,30 @@ while True:
         if not ret:
             print("Video error.")
             break
-        
-        frame = cv2.flip(frame, 1)
+
+        og_frame = cv2.flip(frame, 1)
+        frame = copy.deepcopy(og_frame)
         result, _ = track_hand(frame, handland_marker)
         frame = draw_land_marks(frame, result)
 
-        frame_history.pushfront_gesture_from_landmarks(result)
-        while len(frame_history.gestures) > model_info.memory_frame:
+        frame_history.insert_gesture_from_landmarks(0, result)
+        while len(frame_history.gestures) > sign_rec.info.memory_frame:
             frame_history.gestures.pop(-1)
 
-        recognized_sign, _ = recognize_sign(frame_history, sign_rec_model)
+        # frame_history.gestures.reverse()
+        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields())
+        # frame_history.gestures.reverse()
+
         text = "undefined"
 
         if prev_sign != recognized_sign:
             prev_display = prev_sign
             prev_sign = recognized_sign
         if recognized_sign != -1:
-            text = f"{model_info.labels[recognized_sign]} prev({model_info.labels[prev_display]})"
+            text = f"{sign_rec.info.labels[recognized_sign]} prev({sign_rec.info.labels[prev_display]})"
+        cv2.putText(frame, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0,0,0), 2, cv2.LINE_AA)
+        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
 
-        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
 
 
         if is_recording:
@@ -172,10 +178,10 @@ while True:
             if remaining_delay <= 0:
                 countdown_active = False
 
-                cv2.imwrite(output_file, frame)
+                cv2.imwrite(output_file, og_frame)
                 update_json(label_json_path, {"filename": file_name, "label": image_label})
 
-                result, _ = track_hand(frame, handland_marker)
+                result, _ = track_hand(og_frame, handland_marker)
                 image_sample.insert_gesture_from_landmarks(0, result)
                 image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
 
