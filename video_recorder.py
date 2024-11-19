@@ -19,7 +19,11 @@ keys_index = {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': '
               'u': 'u', 'v': 'v', 'w': 'w', 'x': 'x', 'y': 'y', 'z': 'z', '1': '1', '2': '2', '3': '3', '4': '4',
               '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '_null'}
 
-parser = argparse.ArgumentParser(description="Sign recognition with video recording.")
+parser = argparse.ArgumentParser(
+    description="Program to record videos and take screenshots to create datasets for ia hand recognition.",
+    epilog="Example usage: python script.py --label hello --model path/to/model --delay 3"
+)
+
 parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
 parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
 parser.add_argument("--delay", type=int, default=0, help="Delay in seconds before saving screenshots (default: 0)")
