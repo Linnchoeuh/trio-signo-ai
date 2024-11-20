@@ -26,12 +26,11 @@ def print_help():
 \t{sys.argv[0]} [OPTIONS] [DATASET1 DATASET2 ...]
 OPTIONS:
 \t-h: Display this help message
-\t-s: (-s [integer]) Number of subset to generate for each sample
-\t-n: (-n [string]) Name of the dataset
-\t-f: (-f [integer]) Number of frame in the past in the training set
-\t-x: (-s [string (label)]) NULL dataset: Define the null labeled output for the model further training data.
-\t-b: (-b (enables)) Balance the number of element between label in the training dataset
-\t-a: (-a [string]) Active point: Let you define which point to activate in the training dataset
+\t-s: Number of subsample to generate for each sample (Default: auto)
+\t-n: Name of the dataset
+\t-f: Number of frame in the past in the training set
+\t-x: NULL dataset: Define the null labeled output for the model further training data.
+\t-a: Active point: Let you define which point to activate in the training dataset
 \t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
 """)
@@ -95,7 +94,7 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
     print(f"Dataset name: {dataset_name}")
     print(f"Null label: {null_label}")
     print(f"Labels: {labels}")
-    print(f"Total subsets: {total_subsets}")
+    print(f"Sample per label: {total_subsets if type(total_subsets) == int else 'Auto'}")
     print(f"Number of frame: {nb_frame}")
     print(f"Active gesture: {active_gesture}")
     print(f"Output file: {file_name}")
@@ -126,12 +125,11 @@ def load_datasamples(dataset_labels: list[str], memory_frame: int) -> dict[str, 
 def main():
     i = 1
     dataset_labels: list[str] = []
-    total_subsets: int = 1
+    total_subsets: int = None
     dataset_name: str = None
     nb_frame = 15
     null_set: str = None
     active_gesture: ActiveGestures = ALL_GESTURES
-    balance: bool = False
     while i < len(sys.argv):
         args = sys.argv[i]
         # print(args)
@@ -152,7 +150,6 @@ def main():
                 case "x":
                     i += 1
                     null_set = sys.argv[i]
-                    dataset_labels.append(null_set)
                 case "a":
                     i += 1
                     tmp: dict[str, ActiveGestures] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
@@ -160,14 +157,12 @@ def main():
                         print("Invalid active gesture preset")
                         exit(1)
                     active_gesture = tmp[0]
-                case "b":
-                    balance = True
-                case _:
-                    print(f"Invalid argument: {args}")
-                    exit(1)
         else:
             dataset_labels.append(args)
         i += 1
+
+    if null_set is not None:
+        dataset_labels.append(null_set)
 
     folders = os.listdir(DATASETS_DIR)
 
@@ -194,11 +189,38 @@ def main():
     print("Loading samples into memory...", end=" ")
     data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame)
     print("[DONE]")
-    total_cycle = sum([len(samples) for samples in data_samples.values()]) * total_subsets
+    total_cycle = sum([len(samples) for samples in data_samples.values()]) * 1
+    if total_subsets is not None:
+        total_cycle = len(train_data.info.labels) * total_subsets
     completed_cycle = 0
 
     subset: int = 0
     start_time = time.time()
+
+    for label, samples in data_samples.items():
+
+        treated_sample: int = 0
+        label_id: int = train_data.info.label_map[label]
+        label_total_samples: int = len(samples)
+
+        for sample in samples:
+            sample.label = label
+            train_data.add_data_sample(sample)
+            train_data.add_data_samples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
+            completed_cycle += 1
+            print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                            1, 1, train_data.sample_count,
+                            start_time, completed_cycle, total_cycle)
+
+    if total_subsets is None:
+        total_subsets = 0
+        for label_data in train_data.samples:
+            if len(label_data) > total_subsets:
+                total_subsets = len(label_data)
+                
+    total_cycle = len(train_data.info.labels) * total_subsets
+    print("Total subset:", total_subsets)
+
     for label, samples in data_samples.items():
 
         treated_sample: int = 0
@@ -208,59 +230,20 @@ def main():
         print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                           subset, total_subsets, train_data.sample_count,
                           start_time, completed_cycle, total_cycle)
-
-        for sample in samples:
-
-            train_data.add_data_sample(sample)
-
-            subset = 0
-            while subset < total_subsets:
-                print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
-                                  subset, total_subsets, train_data.sample_count,
-                                  start_time, completed_cycle, total_cycle)
-                train_data.add_data_samples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
-                completed_cycle += 1
-                subset += 1
-
+        i: int = 0
+        total_samples: int = len(samples)
+        while len(train_data.samples[label_id]) < total_subsets:
+            train_data.add_data_samples(create_subset(samples[i % total_samples], nb_frame, data_samples, null_set, active_gesture))
+            i += 1
+            completed_cycle += 1
             treated_sample += 1
             print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                               subset, total_subsets, train_data.sample_count,
                               start_time, completed_cycle, total_cycle)
 
-        print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
-                          subset, total_subsets, train_data.sample_count,
-                          start_time, completed_cycle, total_cycle)
-
     print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                       subset, total_subsets, train_data.sample_count,
                       start_time, completed_cycle, total_cycle)
-
-    print()
-    if balance:
-        print("Balancing dataset...")
-        biggest_label_count: int = max([len(samples) for samples in train_data.samples])
-        missing_samples: int = 0
-        added_samples: int = 0
-        start_time2 = time.time()
-
-
-        for sample in train_data.samples:
-            missing_samples = biggest_label_count - len(sample)
-
-        label_id: int = 0
-        while label_id < len(train_data.samples):
-            i: int = 0
-            current_data_samples = data_samples[train_data.info.labels[label_id]]
-            data_sample_len = len(current_data_samples)
-            # print(len(train_data.samples[label_id]), biggest_label_count)
-            while len(train_data.samples[label_id]) < biggest_label_count:
-                train_data.add_data_samples(create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, null_set, active_gesture))
-                i += 1
-                added_samples += 1
-                print_progression(dataset_labels, label_id, added_samples, missing_samples,
-                      len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
-                      start_time2, 0, 0)
-            label_id += 1
 
     train_data.getNumberOfSamples()
     print()

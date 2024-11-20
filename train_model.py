@@ -20,7 +20,7 @@ parser.add_argument(
     required=False,
     default='v1')
 parser.add_argument(
-    '--memory_frame',
+    '--memory-frame',
     help='Number of frame in the past the model will see (Default: None (Maximum possible frame in the past the trainset have))',
     required=False,
     default=None)
@@ -29,21 +29,23 @@ parser.add_argument(
     help='Name of the model',
     required=False,
     default=None)
+parser.add_argument(
+    '--epoch',
+    help='Name of the model',
+    required=False,
+    default=20)
 
 args: argparse.Namespace = parser.parse_args()
 
 train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
 
-memory_frame: int = train_data.info.memory_frame
-if args.memory_frame is not None and int(args.memory_frame) <= memory_frame:
-    memory_frame = int(args.memory_frame)
 
 
 
 match args.arch:
     case 'v1':
         model = SignRecognizerV1(ModelInfo.build(
-            memory_frame,
+            train_data.info.memory_frame,
             train_data.info.active_gestures,
             train_data.info.labels,
             name=args.name,
@@ -52,7 +54,7 @@ match args.arch:
         train_data, validation_data = train_data.split_trainset(0.8)
         # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())
 
-        model.trainModel(train_data, validation_data=validation_data)
+        model.trainModel(train_data, num_epochs=int(args.epoch), validation_data=validation_data)
         model.saveModel()
 
     case _:

@@ -7,6 +7,7 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.landmark import *
 from src.rot_3d import *
 import cbor2
+import torch
 
 from src.gesture import *
 
@@ -706,3 +707,16 @@ class TrainData2:
         trainset1.getNumberOfSamples()
         trainset2.getNumberOfSamples()
         return trainset1, trainset2
+
+    def get_class_weights(self) -> torch.Tensor:
+        weigths: list[float] = []
+        smallest_class = len(self.samples[0])
+        for sample in self.samples:
+            if len(sample) < smallest_class:
+                smallest_class = len(sample)
+        for sample in self.samples:
+            weigths.append(smallest_class / len(sample))
+        total = sum(weigths)
+        weigths = [weight / total for weight in weigths]
+        # print(weigths)
+        return torch.tensor(weigths, dtype=torch.float32)

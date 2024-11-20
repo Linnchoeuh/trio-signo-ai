@@ -28,6 +28,7 @@ except:
     for file in os.listdir(sys.argv[1]):
         if file.endswith(".json"):
             samples.append((DataSample2.from_json_file(f"{sys.argv[1]}/{file}"), f"{sys.argv[1]}/{file}"))
+            # samples[-1][0].noise_sample()
 samples.sort(key=lambda x: x[1])
 samples.sort(key=lambda x: len(x[1]))
 # sample.scale_sample(y=0)
