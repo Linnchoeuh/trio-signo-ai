@@ -716,7 +716,7 @@ class TrainData2:
                 smallest_class = len(sample)
         for sample in self.samples:
             weigths.append(smallest_class / len(sample))
-        total = sum(weigths)
-        weigths = [weight / total for weight in weigths]
+        # total = sum(weigths)
+        # weigths = [weight / total for weight in weigths]
         # print(weigths)
         return torch.tensor(weigths, dtype=torch.float32)

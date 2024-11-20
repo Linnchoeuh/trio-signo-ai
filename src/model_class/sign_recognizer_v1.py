@@ -97,7 +97,7 @@ class SignRecognizerV1(nn.Module):
         for i in range(len(model_info.layers) - 1):
             self.fcs.append(nn.Linear(model_info.layers[i], model_info.layers[i+1]))
             if i < len(model_info.layers) - 2:
-                self.fcs.append(nn.Dropout(0.5))
+                self.fcs.append(nn.Dropout(0.3))
 
     @classmethod
     def loadModelFromDir(cls, model_dir: str):
