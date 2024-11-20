@@ -248,18 +248,21 @@ def main():
             missing_samples = biggest_label_count - len(sample)
 
         label_id: int = 0
+        completed_cycle = train_data.getNumberOfSamples()
+        total_cycle = biggest_label_count * len(train_data.info.labels)
         while label_id < len(train_data.samples):
             i: int = 0
             current_data_samples = data_samples[train_data.info.labels[label_id]]
             data_sample_len = len(current_data_samples)
             # print(len(train_data.samples[label_id]), biggest_label_count)
             while len(train_data.samples[label_id]) < biggest_label_count:
-                train_data.add_data_samples(create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, null_set, active_gesture))
+                train_data.add_data_samples(create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture))
                 i += 1
                 added_samples += 1
+                completed_cycle += 1
                 print_progression(dataset_labels, label_id, added_samples, missing_samples,
                       len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
-                      start_time2, 0, 0)
+                      start_time2, completed_cycle, total_cycle)
             label_id += 1
 
     train_data.getNumberOfSamples()
