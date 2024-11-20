@@ -63,6 +63,30 @@ class ModelEpochResult:
     mean_loss: float
     epoch: int
 
+class AccuracyCalculator:
+    def __init__(self, num_classes: int):
+        self.num_classes = num_classes
+        self.correct_per_class = None
+        self.total_per_class = None
+        self.reset()
+
+    def reset(self):
+        self.correct_per_class = [0] * self.num_classes # To track correct predictions per class
+        self.total_per_class = [0] * self.num_classes # To track total samples per class
+
+    def calculate_accuracy(self, outputs: torch.Tensor, labels):
+        # Get predictions
+        _, predictions = torch.max(outputs, 1)  # Predicted class indices
+
+        # Update correct and total counts for each class
+        for label in range(self.num_classes):
+            self.correct_per_class[label] += ((predictions == label) & (labels == label)).sum().item()
+            self.total_per_class[label] += (labels == label).sum().item()
+
+    def get_accuracy(self) -> tuple[float, dict]:
+        avg_accuracy = sum(self.correct_per_class) / sum(self.total_per_class) if sum(self.total_per_class) > 0 else 0
+        return (avg_accuracy, [correct / total if total > 0 else 0 for correct, total in zip(self.correct_per_class, self.total_per_class)])
+
 class SignRecognizerV1(nn.Module):
     def __init__(self, model_info: ModelInfo):
         super(SignRecognizerV1, self).__init__()
@@ -72,6 +96,8 @@ class SignRecognizerV1(nn.Module):
 
         for i in range(len(model_info.layers) - 1):
             self.fcs.append(nn.Linear(model_info.layers[i], model_info.layers[i+1]))
+            if i < len(model_info.layers) - 2:
+                self.fcs.append(nn.Dropout(0.5))
 
     @classmethod
     def loadModelFromDir(cls, model_dir: str):
@@ -109,8 +135,6 @@ class SignRecognizerV1(nn.Module):
         return self.fcs[-1](x)
 
     def use(self, input: list[float]):
-        # for i in range(len(input)):
-        #     input[i] = round(input[i], 3)
         while len(input) < self.info.layers[0]:
             input.append(0)
         self.eval()
@@ -144,16 +168,24 @@ class SignRecognizerV1(nn.Module):
                 label_tensor = torch.tensor(self.output[idx], dtype=torch.long)
                 return input_tensor, label_tensor
 
-        dataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.info.layers[0])
-        dataloader = DataLoader(dataset, batch_size=64, shuffle=True)
+        dataset: CustomDataset = CustomDataset(train_data.get_input_data(), train_data.get_output_data(), self.info.layers[0])
+        dataloader: DataLoader = DataLoader(dataset, batch_size=64, shuffle=True)
         if validation_data is not None:
-            validation_set = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
-            validation_dataloader = DataLoader(validation_set, batch_size=64, shuffle=True)
+            validation_set: CustomDataset = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
+            validation_dataloader: DataLoader = DataLoader(validation_set, batch_size=64, shuffle=True)
 
-        criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.parameters(), lr=0.001)
+        criterion = nn.CrossEntropyLoss(train_data.get_class_weights())
+        optimizer = optim.Adam(self.parameters(), lr=0.001, weight_decay=1e-4)
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
+        train_accuracy_calculator = AccuracyCalculator(len(self.info.labels))
+        validation_accuracy_calculator = AccuracyCalculator(len(self.info.labels))
+
+
+        start_time = time.time()
         for epoch in range(num_epochs):
+            train_accuracy_calculator.reset()
+            val_los: float = 0
             for inputs, labels in dataloader:
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
@@ -162,34 +194,63 @@ class SignRecognizerV1(nn.Module):
                 loss.backward()
                 optimizer.step()
 
-            print(f'Epoch [{epoch+1}/{num_epochs}], Loss: {loss.item():.4f}', end="")
+                train_accuracy_calculator.calculate_accuracy(outputs, labels)
+
+            val_loss = loss.item()
+
+            lr = optimizer.param_groups[0]['lr']
+
+            print(f"--- " +
+                f"Epoch [{epoch+1}/{num_epochs}], " +
+                f"Remaining time: {time.strftime('%H:%M:%S', time.gmtime(((time.time() - start_time) / (epoch+1)) * (num_epochs - epoch - 1)))}, " +
+                f"Learning Rate: {lr:.6f}" +
+                f" ---")
+            train_avg_acc, train_accuracy = train_accuracy_calculator.get_accuracy()
+            print(f"\tTrain Loss: {loss.item():.4f}, " +
+                f"Train Accuracy: {(train_avg_acc * 100):.2f}%")
+            for i, label in enumerate(self.info.labels):
+                print(f"\t\t{label}: {(train_accuracy[i] * 100):.2f}%")
             if validation_data is not None:
+                total_correct = 0
                 validation_loss = None
+                validation_accuracy_calculator.reset()
                 for inputs, labels in validation_dataloader:
                     outputs = self(inputs)
                     validation_loss = criterion(outputs, labels)
 
-                print(f', Validation Loss: {validation_loss.item():.4f}', end="")
+                    validation_accuracy_calculator.calculate_accuracy(outputs, labels)
 
-            loss_diff: float = abs(loss.item() - (validation_loss.item() if validation_loss is not None else 0))
-            mean_loss: float = (loss.item() + (validation_loss.item() if validation_loss is not None else loss.item())) / 2
+                validation_avg_acc, validation_accuracy = validation_accuracy_calculator.get_accuracy()
+                print(f"\tValidation Loss: {validation_loss.item():.4f}, " +
+                    f"Validation accuracy: {(validation_avg_acc * 100):.2f}%")
+                for i, label in enumerate(self.info.labels):
+                    print(f"\t\t{label}: {(validation_accuracy[i] * 100):.2f}%")
 
-            print(f", Loss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
+                loss_diff: float = abs(loss.item() - validation_loss.item())
+                mean_loss: float = (loss.item() + validation_loss.item()) / 2
+
+                val_loss += validation_loss.item()
+
+                print(f"\tLoss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
+
+            scheduler.step(val_loss)
 
             model_epochs.append(ModelEpochResult(copy.deepcopy(self), loss.item(),
                                                  validation_loss.item() if validation_loss is not None else None,
                                                  loss_diff, mean_loss, epoch+1))
 
+        """
         model_epochs.sort(key=lambda x: x.loss_diff)
         # print(model_epochs)
         while len(model_epochs) > 5:
             model_epochs.pop(-1)
-        for model_epoch in model_epochs:
-            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        # for model_epoch in model_epochs:
+        #     print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
         model_epochs.sort(key=lambda x: x.validation_loss)
-        print("-----")
-        for model_epoch in model_epochs:
-            print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
+        # print("-----")
+        # for model_epoch in model_epochs:
+        #     print(f"Epoch {model_epoch.epoch}: Loss diff: {model_epoch.loss_diff:.4f}, Mean Loss: {model_epoch.mean_loss:.4f}")
         # print(model_epochs)
         print("Model Epoch Picked:", model_epochs[0].epoch)
         self = model_epochs[0].model_instance
+        """
