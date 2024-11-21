@@ -88,16 +88,19 @@ class AccuracyCalculator:
         return (avg_accuracy, [correct / total if total > 0 else 0 for correct, total in zip(self.correct_per_class, self.total_per_class)])
 
 class SignRecognizerV1(nn.Module):
-    def __init__(self, model_info: ModelInfo):
+    def __init__(self, model_info: ModelInfo, device: torch.device = torch.device("cpu")):
         super(SignRecognizerV1, self).__init__()
 
         self.info = model_info
         self.fcs = nn.ModuleList()
+        self.device: torch.device = device
 
         for i in range(len(model_info.layers) - 1):
             self.fcs.append(nn.Linear(model_info.layers[i], model_info.layers[i+1]))
             if i < len(model_info.layers) - 2:
                 self.fcs.append(nn.Dropout(0.3))
+
+        self.to(self.device)
 
     @classmethod
     def loadModelFromDir(cls, model_dir: str):
@@ -174,7 +177,7 @@ class SignRecognizerV1(nn.Module):
             validation_set: CustomDataset = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
             validation_dataloader: DataLoader = DataLoader(validation_set, batch_size=64, shuffle=True)
 
-        criterion = nn.CrossEntropyLoss(train_data.get_class_weights())
+        criterion = nn.CrossEntropyLoss(train_data.get_class_weights()).to(self.device)
         optimizer = optim.Adam(self.parameters(), lr=0.001, weight_decay=1e-4)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
@@ -187,6 +190,7 @@ class SignRecognizerV1(nn.Module):
             train_accuracy_calculator.reset()
             val_los: float = 0
             for inputs, labels in dataloader:
+                inputs, labels = inputs.to(self.device), labels.to(self.device)
                 outputs = self(inputs)
                 loss = criterion(outputs, labels)
 
@@ -215,6 +219,7 @@ class SignRecognizerV1(nn.Module):
                 validation_loss = None
                 validation_accuracy_calculator.reset()
                 for inputs, labels in validation_dataloader:
+                    inputs, labels = inputs.to(self.device), labels.to(self.device)
                     outputs = self(inputs)
                     validation_loss = criterion(outputs, labels)
 
