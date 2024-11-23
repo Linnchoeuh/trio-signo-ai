@@ -6,8 +6,6 @@ import copy
 import random
 from collections import deque
 
-from dataclasses import dataclass
-from src.model_class.sign_recognizer_v1 import *
 from src.gen_traindata.gen_static_data import *
 from src.gen_traindata.gen_dynamic_data import *
 
