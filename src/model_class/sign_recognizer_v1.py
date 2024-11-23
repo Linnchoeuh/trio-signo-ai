@@ -103,11 +103,11 @@ class SignRecognizerV1(nn.Module):
         self.to(self.device)
 
     @classmethod
-    def loadModelFromDir(cls, model_dir: str):
+    def loadModelFromDir(cls, model_dir: str, device: torch.device = torch.device("cpu")):
         json_files = glob.glob(f"{model_dir}/*.json")
         if len(json_files) == 0:
             raise FileNotFoundError(f"No .json file found in {model_dir}")
-        cls = SignRecognizerV1(ModelInfo.from_json_file(json_files[0]))
+        cls = SignRecognizerV1(ModelInfo.from_json_file(json_files[0]), device=device)
 
         pth_files = glob.glob(f"{model_dir}/*.pth")
         if len(pth_files) == 0:
@@ -117,7 +117,7 @@ class SignRecognizerV1(nn.Module):
         return cls
 
     def loadPthFile(self, model_path):
-        self.load_state_dict(torch.load(model_path))
+        self.load_state_dict(torch.load(model_path, map_location=self.device))
 
     def saveModel(self, model_name: str = None):
         if model_name is None:
