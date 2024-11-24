@@ -6,8 +6,6 @@ import copy
 import random
 from collections import deque
 
-from dataclasses import dataclass
-from src.model_class.sign_recognizer_v1 import *
 from src.gen_traindata.gen_static_data import *
 from src.gen_traindata.gen_dynamic_data import *
 
@@ -26,11 +24,12 @@ def print_help():
 \t{sys.argv[0]} [OPTIONS] [DATASET1 DATASET2 ...]
 OPTIONS:
 \t-h: Display this help message
-\t-s: Number of subset to generate for each sample
-\t-n: Name of the dataset
-\t-f: Number of frame in the past in the training set
-\t-x: NULL dataset: Define the null labeled output for the model further training data.
-\t-a: Active point: Let you define which point to activate in the training dataset
+\t-s: (-s [integer]) Number of subset to generate for each sample
+\t-n: (-n [string]) Name of the dataset
+\t-f: (-f [integer]) Number of frame in the past in the training set
+\t-x: (-s [string (label)]) NULL dataset: Define the null labeled output for the model further training data.
+\t-b: (-b (enables)) Balance the number of element between label in the training dataset
+\t-a: (-a [string]) Active point: Let you define which point to activate in the training dataset
 \t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
 """)
@@ -130,6 +129,7 @@ def main():
     nb_frame = 15
     null_set: str = None
     active_gesture: ActiveGestures = ALL_GESTURES
+    balance: bool = False
     while i < len(sys.argv):
         args = sys.argv[i]
         # print(args)
@@ -158,6 +158,11 @@ def main():
                         print("Invalid active gesture preset")
                         exit(1)
                     active_gesture = tmp[0]
+                case "b":
+                    balance = True
+                case _:
+                    print(f"Invalid argument: {args}")
+                    exit(1)
         else:
             dataset_labels.append(args)
         i += 1
@@ -227,6 +232,36 @@ def main():
     print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                       subset, total_subsets, train_data.sample_count,
                       start_time, completed_cycle, total_cycle)
+
+    print()
+    if balance:
+        print("Balancing dataset...")
+        biggest_label_count: int = max([len(samples) for samples in train_data.samples])
+        missing_samples: int = 0
+        added_samples: int = 0
+        start_time2 = time.time()
+
+
+        for sample in train_data.samples:
+            missing_samples = biggest_label_count - len(sample)
+
+        label_id: int = 0
+        completed_cycle = train_data.getNumberOfSamples()
+        total_cycle = biggest_label_count * len(train_data.info.labels)
+        while label_id < len(train_data.samples):
+            i: int = 0
+            current_data_samples = data_samples[train_data.info.labels[label_id]]
+            data_sample_len = len(current_data_samples)
+            # print(len(train_data.samples[label_id]), biggest_label_count)
+            while len(train_data.samples[label_id]) < biggest_label_count:
+                train_data.add_data_samples(create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture))
+                i += 1
+                added_samples += 1
+                completed_cycle += 1
+                print_progression(dataset_labels, label_id, added_samples, missing_samples,
+                      len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
+                      start_time2, completed_cycle, total_cycle)
+            label_id += 1
 
     train_data.getNumberOfSamples()
     print()
