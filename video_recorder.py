@@ -20,21 +20,30 @@ keys_index = {'a': 'a', 'b': 'b', 'c': 'c', 'd': 'd', 'e': 'e', 'f': 'f', 'g': '
               '5': '5', '6': '6', '7': '7', '8': '8', '9': '9', '0': '_null'}
 
 parser = argparse.ArgumentParser(
-    description="Program to record videos and take screenshots to create datasets for ia hand recognition.",
+    description="Program to record videos and take screenshots to create datasets for IA hand recognition.",
     epilog="Example usage: python script.py --label hello --model path/to/model --delay 3"
 )
 
 parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
-parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
+parser.add_argument("--model", type=str, help="Path to the folder containing the sign recognition model (optional)")
 parser.add_argument("--delay", type=int, default=0, help="Delay in seconds before saving screenshots (default: 0)")
 args = parser.parse_args()
 
 video_label = args.label
 screenshot_delay = args.delay
 
-# Load models
-print("Loading sign recognition model...")
-sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
+# Conditional model loading
+if args.model:
+    print("Loading sign recognition model...")
+    try:
+        sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
+        print("Model loaded successfully.")
+    except Exception as e:
+        print(f"Error loading model: {e}")
+        sign_rec = None
+else:
+    print("No model provided, skipping sign recognition.")
+    sign_rec = None
 
 print("Loading hand landmarker...")
 handland_marker = load_hand_landmarker(1)
@@ -90,21 +99,25 @@ while True:
         result, _ = track_hand(frame, handland_marker)
         frame = draw_land_marks(frame, result)
 
-        frame_history.insert_gesture_from_landmarks(0, result)
-        while len(frame_history.gestures) > sign_rec.info.memory_frame:
-            frame_history.gestures.pop(-1)
+        # Process sign recognition only if model is loaded
+        if sign_rec:
+            frame_history.insert_gesture_from_landmarks(0, result)
+            while len(frame_history.gestures) > sign_rec.info.memory_frame:
+                frame_history.gestures.pop(-1)
 
-        recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields())
+            recognized_sign, sign_rec_time = recognize_sign(
+                frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields()
+            )
 
-        text = "undefined"
+            text = "undefined"
 
-        if prev_sign != recognized_sign:
-            prev_display = prev_sign
-            prev_sign = recognized_sign
-        if recognized_sign != -1:
-            text = f"{sign_rec.info.labels[recognized_sign]} prev({sign_rec.info.labels[prev_display]})"
-        cv2.putText(frame, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0, 0, 0), 2, cv2.LINE_AA)
-        cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+            if prev_sign != recognized_sign:
+                prev_display = prev_sign
+                prev_sign = recognized_sign
+            if recognized_sign != -1:
+                text = f"{sign_rec.info.labels[recognized_sign]} prev({sign_rec.info.labels[prev_display]})"
+            cv2.putText(frame, text, (49, 50), cv2.FONT_HERSHEY_SIMPLEX, 1.01, (0, 0, 0), 2, cv2.LINE_AA)
+            cv2.putText(frame, text, (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
 
         if is_recording:
             out.write(frame)
