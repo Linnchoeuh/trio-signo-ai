@@ -260,7 +260,7 @@ def main():
                       start_time2, completed_cycle, total_cycle)
             label_id += 1
 
-        print("Balance generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time2))
+        print("Balance generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time2)))
 
     train_data.getNumberOfSamples()
     print()
