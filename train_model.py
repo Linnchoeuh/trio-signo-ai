@@ -41,9 +41,35 @@ parser.add_argument(
     help='The device to use for training options: (cpu, gpu, cuda, mps)',
     required=False,
     default="gpu")
-
+parser.add_argument(
+    '--balance-weights',
+    help='Balance the weight for the loss function so no label is overrepresented.',
+    required=False,
+    default=1)
+parser.add_argument(
+    '--neuron-max',
+    help='Maximum number of neuron per layer.',
+    required=False,
+    default=256)
+parser.add_argument(
+    '--neuron-min',
+    help='Minimum number of neuron per layer.',
+    required=False,
+    default=16)
+parser.add_argument(
+    '--layer-max',
+    help='Maximum number of layer.',
+    required=False,
+    default=3)
+parser.add_argument(
+    '--layer-min',
+    help='Minimum number of layer.',
+    required=False,
+    default=1)
 
 args: argparse.Namespace = parser.parse_args()
+
+balance_weights: float = float(args.balance_weights)
 
 train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
 
@@ -63,6 +89,7 @@ else:
     print("Using CPU")
 
 
+
 match args.arch:
     case 'v1':
         model = SignRecognizerV1(ModelInfo.build(
@@ -70,12 +97,12 @@ match args.arch:
             train_data.info.active_gestures,
             train_data.info.labels,
             name=args.name,
-            intermediate_layers=[8]), device=device)
+            intermediate_layers=[1024]), device=device)
         validation_data: TrainData2 = None
         train_data, validation_data = train_data.split_trainset(0.8)
         # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())
 
-        model.trainModel(train_data, num_epochs=int(args.epoch), validation_data=validation_data)
+        model.trainModel(train_data, num_epochs=int(args.epoch), validation_data=validation_data, balance_weights=balance_weights)
         model.saveModel()
 
     case _:

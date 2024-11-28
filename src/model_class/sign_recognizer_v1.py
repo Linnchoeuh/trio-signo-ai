@@ -87,6 +87,25 @@ class AccuracyCalculator:
         avg_accuracy = sum(self.correct_per_class) / sum(self.total_per_class) if sum(self.total_per_class) > 0 else 0
         return (avg_accuracy, [correct / total if total > 0 else 0 for correct, total in zip(self.correct_per_class, self.total_per_class)])
 
+def print_accuraccy_table(accuracies: list[float], labels: list[str],
+                          color_chart: list[tuple[float, tuple[int, int, int]]] = [
+                              (0, (192, 0, 0)),
+                              (0.5, (255, 0, 0)),
+                              (0.7, (255, 50, 0)),
+                              (0.8, (255, 150, 0)),
+                              (0.9, (255, 255, 0)),
+                              (0.95, (32, 255, 0)),
+                              (0.99, (0, 200, 128)),
+                              (1, (0, 0, 255))
+                          ]):
+    for i, label in enumerate(labels):
+        for k in range(len(color_chart)):
+            r, g, b = color_chart[k][1]
+            if (k < len(color_chart) - 1 and accuracies[i] >= color_chart[k][0] and accuracies[i] <= color_chart[k + 1][0]) \
+            or (k >= len(color_chart) - 1 and accuracies[i] >= color_chart[k][0]):
+                print(f"\033[38;2;{r};{g};{b}m", end="")
+        print(f"\t{label}: {(accuracies[i] * 100):.2f}%\033[0m")
+
 class SignRecognizerV1(nn.Module):
     def __init__(self, model_info: ModelInfo, device: torch.device = torch.device("cpu")):
         super(SignRecognizerV1, self).__init__()
@@ -147,7 +166,7 @@ class SignRecognizerV1(nn.Module):
         probabilities = F.softmax(logits, dim=0)
         return torch.argmax(probabilities, dim=0).item()
 
-    def trainModel(self, train_data: TrainData2, num_epochs: int = 20, validation_data: TrainData2 = None) -> str:
+    def trainModel(self, train_data: TrainData2, num_epochs: int = 20, validation_data: TrainData2 = None, balance_weights: int = 1) -> str:
         model_epochs: list[ModelEpochResult] = []
         class CustomDataset(Dataset):
             def __init__(self, input: list[list[float]], output: list[int], model_input_neuron: int):
@@ -177,7 +196,9 @@ class SignRecognizerV1(nn.Module):
             validation_set: CustomDataset = CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), self.info.layers[0])
             validation_dataloader: DataLoader = DataLoader(validation_set, batch_size=64, shuffle=True)
 
-        criterion = nn.CrossEntropyLoss(train_data.get_class_weights()).to(self.device)
+        criterion = nn.CrossEntropyLoss(train_data.get_class_weights(balance_weights))
+        criterion.to(self.device)
+
         optimizer = optim.Adam(self.parameters(), lr=0.001, weight_decay=1e-4)
         scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
@@ -212,8 +233,9 @@ class SignRecognizerV1(nn.Module):
             train_avg_acc, train_accuracy = train_accuracy_calculator.get_accuracy()
             print(f"\tTrain Loss: {loss.item():.4f}, " +
                 f"Train Accuracy: {(train_avg_acc * 100):.2f}%")
-            for i, label in enumerate(self.info.labels):
-                print(f"\t\t{label}: {(train_accuracy[i] * 100):.2f}%")
+            # for i, label in enumerate(self.info.labels):
+            #     print(f"\t\t{label}: {(train_accuracy[i] * 100):.2f}%")
+            print_accuraccy_table(train_accuracy, self.info.labels)
             if validation_data is not None:
                 total_correct = 0
                 validation_loss = None
@@ -228,8 +250,9 @@ class SignRecognizerV1(nn.Module):
                 validation_avg_acc, validation_accuracy = validation_accuracy_calculator.get_accuracy()
                 print(f"\tValidation Loss: {validation_loss.item():.4f}, " +
                     f"Validation accuracy: {(validation_avg_acc * 100):.2f}%")
-                for i, label in enumerate(self.info.labels):
-                    print(f"\t\t{label}: {(validation_accuracy[i] * 100):.2f}%")
+                # for i, label in enumerate(self.info.labels):
+                #     print(f"\t\t{label}: {(validation_accuracy[i] * 100):.2f}%")
+                print_accuraccy_table(validation_accuracy, self.info.labels)
 
                 loss_diff: float = abs(loss.item() - validation_loss.item())
                 mean_loss: float = (loss.item() + validation_loss.item()) / 2

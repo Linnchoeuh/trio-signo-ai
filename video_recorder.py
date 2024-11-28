@@ -32,7 +32,7 @@ print("Loading sign recognition model...")
 sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
 
 print("Loading hand landmarker...")
-handland_marker = load_hand_landmarker(1)
+handland_marker = load_hand_landmarker(2)
 
 # Video setup
 record = cv2.VideoCapture(0)

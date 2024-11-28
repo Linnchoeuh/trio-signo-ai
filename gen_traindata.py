@@ -45,13 +45,14 @@ def print_progression(dataset_labels: list[str], label_id: int,
         one_cycle_time = elapsed_time / completed_cycle
     remaining_time = one_cycle_time * (total_cycle - completed_cycle)
     remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time))
+    dataset_labels_len = len(dataset_labels)
 
     print(f"\r\033[KCreating dataset: "
-        f"[Label ({dataset_labels[label_id]}): {label_id}/{len(dataset_labels)}] "
-        f"[Datasample: {treated_sample}/{label_total_samples}] "
-        f"[Subset Generation: {subset}/{total_subset}] "
+        f"[Label ({dataset_labels[label_id]}): {str(label_id).zfill(len(str(dataset_labels_len)))}/{dataset_labels_len}] "
+        f"[Datasample: {str(treated_sample).zfill(len(str(label_total_samples)))}/{label_total_samples}] "
+        f"[Subset Generation: {str(subset).zfill(len(str(total_subset)))}/{total_subset}] "
         f"[Sample generated: {created_sample}] "
-        f"Remain time: {remaining_time_str} {completed_cycle}/{total_cycle}", end="")
+        f"Remain time: {remaining_time_str} {str(completed_cycle).zfill(len(str(total_cycle)))}/{total_cycle}", end="")
 
 
 def create_subset(sample: DataSample2, nb_frame: int, data_samples: dict[str, list[DataSample2]], null_set: str = None, active_points: ActiveGestures = None) -> list[DataSample2]:
@@ -235,33 +236,31 @@ def main():
 
     print()
     if balance:
+        print("Base generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
         print("Balancing dataset...")
         biggest_label_count: int = max([len(samples) for samples in train_data.samples])
-        missing_samples: int = 0
-        added_samples: int = 0
         start_time2 = time.time()
 
 
-        for sample in train_data.samples:
-            missing_samples = biggest_label_count - len(sample)
-
         label_id: int = 0
-        completed_cycle = train_data.getNumberOfSamples()
-        total_cycle = biggest_label_count * len(train_data.info.labels)
+        completed_cycle: int = 0
+        total_cycle = (biggest_label_count * len(train_data.info.labels)) - train_data.getNumberOfSamples()
         while label_id < len(train_data.samples):
             i: int = 0
             current_data_samples = data_samples[train_data.info.labels[label_id]]
             data_sample_len = len(current_data_samples)
             # print(len(train_data.samples[label_id]), biggest_label_count)
             while len(train_data.samples[label_id]) < biggest_label_count:
-                train_data.add_data_samples(create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture))
+                generated_subset = create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture)
+                completed_cycle += len(generated_subset)
+                train_data.add_data_samples(generated_subset)
                 i += 1
-                added_samples += 1
-                completed_cycle += 1
-                print_progression(dataset_labels, label_id, added_samples, missing_samples,
+                print_progression(dataset_labels, label_id, i % data_sample_len, data_sample_len,
                       len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
                       start_time2, completed_cycle, total_cycle)
             label_id += 1
+
+        print("Balance generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time2))
 
     train_data.getNumberOfSamples()
     print()
