@@ -708,15 +708,19 @@ class TrainData2:
         trainset2.getNumberOfSamples()
         return trainset1, trainset2
 
-    def get_class_weights(self) -> torch.Tensor:
+    def get_class_weights(self, balance_weight: bool = True) -> torch.Tensor:
         weigths: list[float] = []
-        smallest_class = len(self.samples[0])
-        for sample in self.samples:
-            if len(sample) < smallest_class:
-                smallest_class = len(sample)
-        for sample in self.samples:
-            weigths.append(smallest_class / len(sample))
-        # total = sum(weigths)
-        # weigths = [weight / total for weight in weigths]
+        if balance_weight:
+            smallest_class = len(self.samples[0])
+            for sample in self.samples:
+                if len(sample) < smallest_class:
+                    smallest_class = len(sample)
+            for sample in self.samples:
+                weigths.append(smallest_class / len(sample))
+        else:
+            for sample in self.samples:
+                weigths.append(1)
+        total = sum(weigths)
+        weigths = [weight / total for weight in weigths]
         # print(weigths)
         return torch.tensor(weigths, dtype=torch.float32)
