@@ -21,7 +21,6 @@ def train_epoch_run_model(model: SignRecognizerV1, criterion: nn.Module, inputs:
     Returns:
         tuple[torch.Tensor, torch.Tensor]: tuple(loss, outputs)
     """
-    inputs, labels = inputs.to(model.device), labels.to(model.device)
     outputs: torch.Tensor = model(inputs)
     return (criterion(outputs, labels), outputs)
 
@@ -52,6 +51,7 @@ def train_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion: nn.M
     accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.labels)
 
     for inputs, labels in dataloader:
+        inputs, labels = inputs.to(model.device), labels.to(model.device)
         loss, outputs = train_epoch_run_model(model, criterion, inputs, labels)
         train_epoch_optimize(optimizer, loss)
 
@@ -75,6 +75,7 @@ def validation_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion:
 
     with torch.no_grad():
         for inputs, labels in dataloader:
+            inputs, labels = inputs.to(model.device), labels.to(model.device)
             loss, outputs = train_epoch_run_model(model, criterion, inputs, labels)
 
             accuracy_calculator.calculate_accuracy(outputs, labels)

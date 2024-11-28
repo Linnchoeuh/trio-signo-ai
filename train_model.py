@@ -94,7 +94,7 @@ min_layer: int = int(args.layer_min)
 max_dropout: float = float(args.max_dropout)
 min_dropout: float = float(args.min_dropout)
 
-print("Loading trainset...", end="")
+print("Loading trainset...", end="", flush=True)
 train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
 print("[DONE]")
 model_info: ModelInfo = ModelInfo.build(
@@ -107,19 +107,21 @@ model_info: ModelInfo = ModelInfo.build(
 validation_ratio: float = float(args.validation_set_ratio)
 validation_dataloader: DataLoader = None
 if validation_ratio > 0:
-    print("Splitting trainset...", end="")
+    print("Splitting trainset...", end="", flush=True)
     train_data, validation_data = train_data.split_trainset(0.8)
     validation_dataloader: DataLoader = DataLoader(CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
     print("[DONE]")
 train_dataloader: DataLoader = DataLoader(CustomDataset(train_data.get_input_data(), train_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
-
 
 balance_weights: bool = True if str(args.balance_weights).lower() in ["true", "1", "yes"] else False
 weigths_balance: torch.Tensor = None
 if balance_weights:
     weigths_balance = train_data.get_class_weights()
 
-print("Device selection... ", end="")
+train_data = None
+validation_data = None
+
+print("Device selection... ", end="", flush=True)
 device = torch.device("cpu")
 if args.device in ["gpu", "cuda"] and torch.cuda.is_available():
     # Check for CUDA (NVIDIA GPU)
