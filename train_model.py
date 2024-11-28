@@ -4,9 +4,12 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import json
+import optuna
 
 from src.datasample import *
 from src.model_class.sign_recognizer_v1 import *
+from src.train_model.train import *
+from src.train_model.CustomDataset import *
 
 import torch
 
@@ -45,7 +48,7 @@ parser.add_argument(
     '--balance-weights',
     help='Balance the weight for the loss function so no label is overrepresented.',
     required=False,
-    default=1)
+    default=True)
 parser.add_argument(
     '--neuron-max',
     help='Maximum number of neuron per layer.',
@@ -66,13 +69,57 @@ parser.add_argument(
     help='Minimum number of layer.',
     required=False,
     default=1)
+parser.add_argument(
+    '--validation-set-ratio',
+    help='Ratio of the trainset that will be used for the validation set.',
+    required=False,
+    default=0.2)
+parser.add_argument(
+    '--min-dropout',
+    help='Dropout value for the model.',
+    required=False,
+    default=0.3)
+parser.add_argument(
+    '--max-dropout',
+    help='Dropout value for the model.',
+    required=False,
+    default=0.5)
 
 args: argparse.Namespace = parser.parse_args()
 
-balance_weights: float = float(args.balance_weights)
+max_neuron: int = int(args.neuron_max)
+min_neuron: int = int(args.neuron_min)
+max_layer: int = int(args.layer_max)
+min_layer: int = int(args.layer_min)
+max_dropout: float = float(args.max_dropout)
+min_dropout: float = float(args.min_dropout)
 
+print("Loading trainset...", end="")
 train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
+print("[DONE]")
+model_info: ModelInfo = ModelInfo.build(
+            train_data.info.memory_frame,
+            train_data.info.active_gestures,
+            train_data.info.labels,
+            name=args.name,
+            intermediate_layers=[])
 
+validation_ratio: float = float(args.validation_set_ratio)
+validation_dataloader: DataLoader = None
+if validation_ratio > 0:
+    print("Splitting trainset...", end="")
+    train_data, validation_data = train_data.split_trainset(0.8)
+    validation_dataloader: DataLoader = DataLoader(CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
+    print("[DONE]")
+train_dataloader: DataLoader = DataLoader(CustomDataset(train_data.get_input_data(), train_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
+
+
+balance_weights: bool = True if str(args.balance_weights).lower() in ["true", "1", "yes"] else False
+weigths_balance: torch.Tensor = None
+if balance_weights:
+    weigths_balance = train_data.get_class_weights()
+
+print("Device selection... ", end="")
 device = torch.device("cpu")
 if args.device in ["gpu", "cuda"] and torch.cuda.is_available():
     # Check for CUDA (NVIDIA GPU)
@@ -88,22 +135,37 @@ else:
     # Default to CPU
     print("Using CPU")
 
+def objective(trial: optuna.trial.Trial) -> float:
+    num_layers = trial.suggest_int("num_layers", min_layer, max_layer)
+    layers: list[int] = []
+    for i in range(num_layers):
+        layers.append(trial.suggest_int(f"hidden_size_layer_{i}", min_neuron, max_neuron))
+    dropout = trial.suggest_float("dropout", min_dropout, max_dropout)
+
+    model_info.set_intermediate_layers(layers)
+
+    validation_loss = 0
+
+    match args.arch:
+        case 'v1':
+            model = SignRecognizerV1(model_info, device=device, dropout=dropout)
+
+            validation_loss = train_model(model, device, train_dataloader, validation_dataloader, num_epochs=5, weights_balance=weigths_balance, validation_interval=-1)
+
+            # model.saveModel()
 
 
-match args.arch:
-    case 'v1':
-        model = SignRecognizerV1(ModelInfo.build(
-            train_data.info.memory_frame,
-            train_data.info.active_gestures,
-            train_data.info.labels,
-            name=args.name,
-            intermediate_layers=[1024]), device=device)
-        validation_data: TrainData2 = None
-        train_data, validation_data = train_data.split_trainset(0.8)
-        # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())
+        case _:
+            raise ValueError(f"Model architecture {args.arch} not found.")
 
-        model.trainModel(train_data, num_epochs=int(args.epoch), validation_data=validation_data, balance_weights=balance_weights)
-        model.saveModel()
+    return validation_loss
 
-    case _:
-        raise ValueError(f"Model architecture {args.arch} not found.")
+study = optuna.create_study(direction="minimize")
+study.optimize(objective, n_trials=50)
+
+sorted_trials = sorted(study.trials, key=lambda t: t.value)
+
+# Display the ranking
+print("Ranked Trials:")
+for rank, trial in enumerate(sorted_trials, 1):
+    print(f"Rank {rank}: Value={trial.value:.4f}, Params={trial.params}")
