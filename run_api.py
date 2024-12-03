@@ -21,12 +21,6 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from src.model_class.sign_recognizer_v1 import *
 from run_model import load_hand_landmarker
 
-
-def load_alphabet_recognizer_model() -> SignRecognizerV1:
-    model: SignRecognizerV1 = SignRecognizerV1()
-    model.loadModel("models/sign_recognition/alphabet_recognizer_.pth")
-    return model
-
 def main():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
@@ -47,8 +41,8 @@ def main():
     logger: logging.Logger = setup_logger(args.debug)
     logger.debug(f"Logger setup")
 
-    hand_tracker: HandLandmarker = load_hand_landmarker()
-    alphabet_recognizer: SignRecognizerV1 = load_alphabet_recognizer_model()
+    hand_tracker: HandLandmarker = load_hand_landmarker(1)
+    alphabet_recognizer: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir("model_alphabet")
 
     logger.debug(f"AI Model loaded successfully")
 

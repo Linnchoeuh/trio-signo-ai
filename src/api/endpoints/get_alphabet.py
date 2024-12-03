@@ -6,8 +6,9 @@ from flask import request, jsonify
 import numpy as np
 import io
 from PIL import Image, ImageOps
+from run_model import track_hand, recognize_sign
 
-from src.alphabet_recognizer import *
+from src.model_class.sign_recognizer_v1 import *
 
 import mediapipe as mp
 from mediapipe.tasks.python.vision.hand_landmarker import *
@@ -55,7 +56,7 @@ def display_hand_tracked_image(image, recognition_result: HandLandmarkerResult):
     cv2.waitKeyEx(1000)
     cv2.destroyAllWindows()
 
-def get_alpahabet(hand_tracker: HandLandmarker, alphabet_recognizer: LSFAlphabetRecognizer):
+def get_alpahabet(hand_tracker: HandLandmarker, alphabet_recognizer: SignRecognizerV1):
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -77,14 +78,21 @@ def get_alpahabet(hand_tracker: HandLandmarker, alphabet_recognizer: LSFAlphabet
 
         image = rescale_from_smallest_side(image, 480)
 
-        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Ensure the image is in RGB format
+        # image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # Ensure the image is in RGB format
 
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
+        # mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image_rgb)
 
-        recognition_result: HandLandmarkerResult = hand_tracker.detect(mp_image)
+        # recognition_result: HandLandmarkerResult = hand_tracker.detect(mp_image)
+        recognition_result, _ = track_hand(image, hand_tracker)
 
         # display_hand_tracked_image(image, recognition_result)
 
         if len(recognition_result.hand_world_landmarks) < 1:
             return jsonify({'message': None}), 200
-        return jsonify({'message': LABEL_MAP.id[alphabet_recognizer.use(LandmarksTo1DArray(recognition_result.hand_world_landmarks[0]))]}), 200
+
+        sample: DataSample2 = DataSample2("", [])
+        sample.insert_gesture_from_landmarks(0, recognition_result)
+
+        sign, _ = recognize_sign(sample, alphabet_recognizer)
+
+        return jsonify({'message': f"{alphabet_recognizer.info.labels[sign]}"}), 200
