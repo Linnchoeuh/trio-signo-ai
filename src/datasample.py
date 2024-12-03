@@ -322,7 +322,7 @@ class DataSample2:
         for gest in self.gestures:
             gest.setNonePointsRandomlyToRandomOrZero(proba)
 
-    def noise_sample(self, range: float = 0.005, valid_fields: list[str] = None) -> 'DataSample2':
+    def noise_sample(self, range: float = 0.004, valid_fields: list[str] = None) -> 'DataSample2':
         """Will randomize the sample gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.
 
         Args:
