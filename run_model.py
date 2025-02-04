@@ -30,7 +30,7 @@ from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
 from src.datasample import *
-from src.model_class.sign_recognizer_v1 import *
+from src.model_class.transformer_sign_recognizer import *
 
 HAND_TRACKING_MODEL_PATH = "models/hand_tracking/google/hand_landmarker.task"
 
@@ -82,13 +82,11 @@ def draw_land_marks(image: cv2.typing.MatLike, hand_landmarks: HandLandmarkerRes
           mp_drawing_styles.get_default_hand_connections_style())
     return img_cpy
 
-def recognize_sign(sample: DataSample, sign_recognition_model: SignRecognizerV1, valid_fields: list[str] = None) -> tuple[int, float]:
+def recognize_sign(sample: DataSample2, sign_recognition_model: SignRecognizerTransformer, valid_fields: list[str] = None) -> tuple[int, float]:
     start_time = time.time()
-    if type(sign_recognition_model) is SignRecognizerV1:
-        return sign_recognition_model.use(sample.samples_to_1d_array(valid_fields)), time.time() - start_time
-    else:
-        raise ValueError("Model type not supported")
-    return -1, time.time() - start_time
+    out = sign_recognition_model.predict(sample.to_tensor(sign_recognition_model.info.memory_frame, valid_fields))
+    # print(out)
+    return out, time.time() - start_time
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

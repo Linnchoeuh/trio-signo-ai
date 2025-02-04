@@ -7,13 +7,13 @@ import torch
 
 from src.train_model.AccuracyCalculator import AccuracyCalculator
 from src.train_model.CustomDataset import CustomDataset
-from src.model_class.sign_recognizer_v1 import SignRecognizerV1
+from src.model_class.transformer_sign_recognizer import *
 
-def train_epoch_run_model(model: SignRecognizerV1, criterion: nn.Module, inputs: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+def train_epoch_run_model(model: SignRecognizerTransformer, criterion: nn.Module, inputs: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
     """_summary_
 
     Args:
-        model (SignRecognizerV1): _description_
+        model (SignRecognizerTransformer): _description_
         criterion (nn.CrossEntropyLoss): _description_
         inputs (torch.Tensor): _description_
         labels (torch.Tensor): _description_
@@ -35,11 +35,11 @@ def train_epoch_optimize(optimizer: optim.Optimizer, loss: torch.Tensor):
     loss.backward()
     optimizer.step()
 
-def train_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion: nn.Module, optimizer: optim.Optimizer) -> tuple[torch.Tensor, AccuracyCalculator]:
+def train_epoch(model: SignRecognizerTransformer, dataloader: DataLoader, criterion: nn.Module, optimizer: optim.Optimizer) -> tuple[torch.Tensor, AccuracyCalculator]:
     """Will run the model and then optimize it.
 
     Args:
-        model (SignRecognizerV1): Model to run
+        model (SignRecognizerTransformer): Model to run
         dataloader (DataLoader): Data to run the model on
         criterion (nn.Module): Loss function
         optimizer (optim.Optimizer): Optimizer
@@ -51,7 +51,7 @@ def train_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion: nn.M
     accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.labels)
 
     for inputs, labels in dataloader:
-        inputs, labels = inputs.to(model.device), labels.to(model.device)
+        # inputs, labels = inputs.to(model.device), labels.to(model.device)
         loss, outputs = train_epoch_run_model(model, criterion, inputs, labels)
         train_epoch_optimize(optimizer, loss)
 
@@ -59,7 +59,7 @@ def train_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion: nn.M
 
     return loss, accuracy_calculator
 
-def validation_epoch(model: SignRecognizerV1, dataloader: DataLoader, criterion: nn.Module) -> tuple[torch.Tensor, AccuracyCalculator]:
+def validation_epoch(model: SignRecognizerTransformer, dataloader: DataLoader, criterion: nn.Module) -> tuple[torch.Tensor, AccuracyCalculator]:
     """Will run the model without doing the optimization part (Use <strong>train_epoch</strong> function for that).
 
     Args:
@@ -92,7 +92,7 @@ def log_validation_info(val_acc: AccuracyCalculator, loss: torch.Tensor, val_los
     val_acc.print_accuracy_table()
     print(f"\tLoss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
 
-def train_model(model: SignRecognizerV1, device: torch.device,
+def train_model(model: SignRecognizerTransformer, device: torch.device,
                 train_data: DataLoader, validation_data: DataLoader = None,
                 num_epochs: int = 20, weights_balance: torch.Tensor = None,
                 learning_rate: float = 0.001, validation_interval: int = 2, silent: bool = False) -> float:
