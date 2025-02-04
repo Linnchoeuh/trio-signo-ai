@@ -1,5 +1,6 @@
 import math
 import random
+import torch
 from dataclasses import dataclass, fields
 from typing import Generic, TypeVar
 
@@ -69,7 +70,7 @@ class Gestures(Generic[T]):
     r_pinky_tip: T = None
 
 FIELDS: list[str] = [field.name for field in fields(Gestures())]
-
+FIELD_DIMENSION: int = 3
 
 @dataclass
 class ActiveGestures(Gestures[bool | None]):
@@ -252,6 +253,14 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         tmp.setHandsFromHandLandmarkerResult(landmark_result, valid_fields)
         return tmp
 
+    @classmethod
+    def from1DArray(self, array: list[float], valid_fields: list[str] = None) -> "DataGestures":
+        tmp = DataGestures()
+        valid_fields = get_fields(valid_fields)
+        for i, field_name in enumerate(valid_fields):
+            setattr(tmp, field_name, array[i * FIELD_DIMENSION: (i + 1) * FIELD_DIMENSION])
+        return tmp
+
     def setHandsFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
         """Convert the HandLandmarkerResult object into a DataGestures object.
 
@@ -424,16 +433,11 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         return self
 
     def get1DArray(self, valid_fields: list[str] = None) -> list[float]:
-        data: list[float] = []
-        valid_fields = get_fields(valid_fields)
+        valid_fields = get_fields(valid_fields)  # Récupérer les bons champs
+        return [coord for field_name in valid_fields for coord in (getattr(self, field_name, [0, 0, 0]) or [0, 0, 0])]
 
-        for field_name in valid_fields:
-            attr: list[float, float, float] | None = getattr(self, field_name)
-            if attr is None:
-                attr = [0, 0, 0]
-                # raise ValueError(f"Field {field_name} is None")
-            data += attr
-        return data
+    def toTensor(self, valid_fields: list[str] = FIELDS, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+        return torch.as_tensor(self.get1DArray(valid_fields), dtype=torch.float32).to(device)
 
     def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
         """Will randomize the gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.

@@ -4,7 +4,7 @@ LSF AI model recognition
 
 # Setup
 
-Install python 3.12 or higher and run:
+Install python **3.12.x** and run:
 ```sh
 pip install -r requirements.txt
 ```

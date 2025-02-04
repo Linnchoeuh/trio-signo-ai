@@ -9,8 +9,9 @@ from collections import deque
 from src.gen_traindata.gen_static_data import *
 from src.gen_traindata.gen_dynamic_data import *
 
-from src.datasample import *
 from src.gesture import *
+from src.datasample import *
+from src.datasamples import *
 
 DATASETS_DIR = "datasets"
 
@@ -188,7 +189,7 @@ def main():
 
     summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
 
-    train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
+    train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, nb_frame, active_gesture))
 
     print("Loading samples into memory...", end=" ")
     data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame)
@@ -210,14 +211,14 @@ def main():
 
         for sample in samples:
 
-            train_data.add_data_sample(sample)
+            train_data.addDataSample(sample)
 
             subset = 0
             while subset < total_subsets:
                 print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                                   subset, total_subsets, train_data.sample_count,
                                   start_time, completed_cycle, total_cycle)
-                train_data.add_data_samples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
+                train_data.addDataSamples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
                 completed_cycle += 1
                 subset += 1
 
@@ -253,7 +254,7 @@ def main():
             while len(train_data.samples[label_id]) < biggest_label_count:
                 generated_subset = create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture)
                 completed_cycle += len(generated_subset)
-                train_data.add_data_samples(generated_subset)
+                train_data.addDataSamples(generated_subset)
                 i += 1
                 print_progression(dataset_labels, label_id, i % data_sample_len, data_sample_len,
                       len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
@@ -267,7 +268,7 @@ def main():
     print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
     print("Total unique sample created: ", train_data.getNumberOfSamples())
     print("Saving dataset...")
-    train_data.to_cbor_file(f"./{dataset_name}.cbor")
+    train_data.toCborFile(f"./{dataset_name}.cbor")
     # train_data.to_json_file(f"./{dataset_name}.json", indent=4)
 
 # import cProfile

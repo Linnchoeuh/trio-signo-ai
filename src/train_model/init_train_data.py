@@ -1,11 +1,12 @@
 import torch
 from torch.utils.data import DataLoader
 from src.train_model.train import CustomDataset
-from src.model_class.sign_recognizer_v1 import ModelInfo
+from src.model_class.transformer_sign_recognizer import ModelInfo, SignRecognizerTransformerDataset
 
 from src.datasample import *
+from src.datasamples import *
 
-def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_weights: bool = True, model_name: str = None) -> tuple[DataLoader, DataLoader | None, ModelInfo, torch.Tensor | None]:
+def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_weights: bool = True, batch_size: int = 16, model_name: str = None, device: torch.device = torch.device("cpu")) -> tuple[DataLoader, DataLoader | None, ModelInfo, torch.Tensor | None]:
     """_summary_
 
     Args:
@@ -19,29 +20,26 @@ def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_we
     """
 
     print("Loading trainset...", end="", flush=True)
-    train_data: TrainData2 = TrainData2.from_cbor_file(trainset_path)
+    train_data: DataSamples = DataSamples.fromCborFile(trainset_path)
     print("[DONE]")
 
     model_info: ModelInfo = ModelInfo.build(
-            train_data.info.memory_frame,
-            train_data.info.active_gestures,
-            train_data.info.labels,
-            name=model_name,
-            intermediate_layers=[])
+            info=train_data.info,
+            name=model_name)
+
+
+    train_in_data, train_out_data, validation_in_data, validation_out_data = train_data.toTensors(device, validation_ratio)
 
 
     validation_dataloader: DataLoader = None
     if validation_ratio > 0:
-        print("Splitting trainset...", end="", flush=True)
-        train_data, validation_data = train_data.split_trainset(0.8)
-        validation_dataloader: DataLoader = DataLoader(CustomDataset(validation_data.get_input_data(), validation_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
-        print("[DONE]")
-    train_dataloader: DataLoader = DataLoader(CustomDataset(train_data.get_input_data(), train_data.get_output_data(), model_info.layers[0]), batch_size=16, shuffle=True)
+        validation_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(validation_in_data, validation_out_data), batch_size=batch_size, shuffle=True)
+    train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(train_in_data, train_out_data), batch_size=batch_size, shuffle=True)
 
 
     balance_weights: bool = True if str(balance_weights).lower() in ["true", "1", "yes"] else False
     weigths_balance: torch.Tensor = None
     if balance_weights:
-        weigths_balance = train_data.get_class_weights()
+        weigths_balance = train_data.getClassWeights()
 
     return (train_dataloader, validation_dataloader, model_info, weigths_balance)
