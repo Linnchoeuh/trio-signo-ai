@@ -57,7 +57,7 @@ class DataSamplesInfo:
 
 class DataSamples:
     info: DataSamplesInfo
-    samples: list[dict[int, DataSample2]] # (label)list[(gesture)set[(datasample)tuple[(id)int, (frames)tuple[float]]]]
+    samples: list[dict[int, list[float]]]
     sample_count: int
 
     def __init__(self, info: DataSamplesInfo):
@@ -77,10 +77,10 @@ class DataSamples:
 
         for sample_label_id in range(len(dict_sample)):
             current_label: str = cls.info.labels[sample_label_id]
-            print(f"\rLoading label: {current_label}/{len(cls.info.labels)}", end="", flush=True)
+            print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.labels)}", end="", flush=True)
             for sample in dict_sample[sample_label_id]:
-                new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
-                cls.samples[sample_label_id][id(new_datasample)] = new_datasample
+                # new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
+                cls.samples[sample_label_id][id(sample)] = sample
         cls.getNumberOfSamples()
         return cls
 
@@ -105,17 +105,18 @@ class DataSamples:
         return self.sample_count
 
     def toDict(self) -> dict:
-        self.sample_count = self.getNumberOfSamples()
+        # self.sample_count = self.getNumberOfSamples()
 
-        samples: list[list[float]] = []
-        for i in range(len(self.samples)):
-            samples.append([])
-            for sample in self.samples[i].values():
-                samples[-1].append(sample.flat(self.valid_fields))
+        # samples: list[list[float]] = []
+        # for i in range(len(self.samples)):
+        #     samples.append([])
+        #     for sample in self.samples[i].values():
+        #         # samples[-1].append(sample.flat(self.valid_fields))
+        #         samples[-1].append(sample)
 
         return {
             "info": self.info.toDict(),
-            "samples": samples
+            "samples": self.samples
         }
 
     def toJsonFile(self, file_path: str, indent: int | str | None = 0):
@@ -129,11 +130,33 @@ class DataSamples:
         with open(file_path, 'wb') as f:
             f.write(self.toCbor())
 
-    def toTensors(self, device: torch.device = torch.device("cpu"), split_ratio: float = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        all_samples: dict[int, DataSample2] = {}
+    # def toTensors(self, device: torch.device = torch.device("cpu"), split_ratio: float = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    #     all_samples: dict[int, DataSample2] = {}
 
-        for label_samples in self.samples:
-            all_samples.update(label_samples)
+    #     for label_samples in self.samples:
+    #         all_samples.update(label_samples)
+
+    #     keys = random.sample(list(all_samples.keys()), len(all_samples))
+
+    #     input_data: list[torch.Tensor] = []
+    #     output_data: list[int] = []
+
+    #     while len(keys) > 0:
+    #         key = keys.pop()
+    #         output_data.append(self.info.label_map[all_samples[key].label])
+    #         input_data.append(all_samples[key].to_tensor(self.info.memory_frame, self.valid_fields, device))
+
+    #     if split_ratio > 0:
+    #         split_index = int(len(input_data) * split_ratio)
+    #         return torch.stack(input_data[:split_index]), torch.tensor(output_data[:split_index]), torch.stack(input_data[split_index:]), torch.tensor(output_data[split_index:])
+    #     return torch.stack(input_data), torch.tensor(output_data), None, None
+
+    def toTensors(self, device: torch.device = torch.device("cpu"), split_ratio: float = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+        all_samples: dict[int, tuple[list[float], int]] = {}
+
+        for i in range(len(self.samples)):
+            for _id, sample in self.samples[i].items():
+                all_samples[_id] = (sample, i)
 
         keys = random.sample(list(all_samples.keys()), len(all_samples))
 
@@ -142,8 +165,8 @@ class DataSamples:
 
         while len(keys) > 0:
             key = keys.pop()
-            output_data.append(self.info.label_map[all_samples[key].label])
-            input_data.append(all_samples[key].to_tensor(self.info.memory_frame, self.valid_fields, device))
+            output_data.append(all_samples[key][1])
+            input_data.append(DataSample2.unflat(all_samples[key][0], self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields, device))
 
         if split_ratio > 0:
             split_index = int(len(input_data) * split_ratio)
@@ -159,8 +182,9 @@ class DataSamples:
         if self.info.one_side:
             data_sample.move_to_one_side()
 
+        flat_list: list[float] = data_sample.flat(self.valid_fields)
         # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
-        self.samples[label_id][id(data_sample)] = data_sample
+        self.samples[label_id][id(flat_list)] = flat_list
         # self.samples[label_id].add(sample_data)
 
         # Increment the overall sample count
