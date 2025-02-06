@@ -550,3 +550,6 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
 
         return self
+
+    def one_side(self, right_side: bool = True) -> "DataGestures":
+        pass

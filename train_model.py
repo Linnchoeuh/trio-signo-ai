@@ -24,6 +24,7 @@ model: SignRecognizerTransformer = None
 #     model = SignRecognizerV1.loadModelFromDir(args.model_path)
 #     print("[DONE]")
 
+
 train_data, validation_data, model_info, weights_balance = init_train_set(args.trainset_path, args.validation_set_ratio, args.balance_weights, 32, args.name)
 
 # if args.research:
@@ -31,8 +32,8 @@ train_data, validation_data, model_info, weights_balance = init_train_set(args.t
 #     research_mode(args, model_info, train_data, validation_data, weights_balance, args.research_trial)
 # else:
 
-print("Starting training...")
 if model is None:
-    model = SignRecognizerTransformer(model_info, 15, 32, 8, 3, device=args.device)
+    model = SignRecognizerTransformer(model_info, args.d_model, args.num_heads, args.num_layers, device=args.device)
+print("Starting training...")
 validation_loss = train_model(model, args.device, train_data, validation_data, num_epochs=args.epoch, weights_balance=weights_balance)
 model.saveModel()

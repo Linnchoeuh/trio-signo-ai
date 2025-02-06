@@ -13,6 +13,10 @@ from src.datasamples import *
 @dataclass
 class ModelInfo(DataSamplesInfo):
     name: str
+    d_model: int = None
+    num_heads: int = None
+    num_layers: int = None
+    ff_dim: int = None
 
     @classmethod
     def build(cls, info: DataSamplesInfo, active_gestures: ActiveGestures = None, name: str = None) -> 'ModelInfo':
@@ -51,6 +55,10 @@ class ModelInfo(DataSamplesInfo):
     def to_dict(self):
         _dict: dict = super(ModelInfo, self).toDict()
         _dict["name"] = self.name
+        _dict["d_model"] = self.d_model
+        _dict["num_heads"] = self.num_heads
+        _dict["num_layers"] = self.num_layers
+        _dict["ff_dim"] = self.ff_dim
         return _dict
 
     def to_json_file(self, file_path: str, indent: int = 4):
@@ -83,10 +91,10 @@ class SignRecognizerTransformerLayer(nn.Module):
         return x
 
 class SignRecognizerTransformer(nn.Module):
-    def __init__(self, model_info: ModelInfo, seq_len: int, d_model: int, num_heads: int, num_layers: int, ff_dim: int = None, device: torch.device = torch.device("cpu")):
+    def __init__(self, model_info: ModelInfo, d_model: int, num_heads: int, num_layers: int, ff_dim: int = None, device: torch.device = torch.device("cpu")):
         """
         Args:
-            seq_len (int): Number of frame in the past the model will remember.
+            "hidden" seq_len (int): Number of frame in the past the model will remember.
 
             "hidden" feature_dim (int): number of value we will give the model to recognize the sign (e.g: 3 for one hand point, 73 for a full hand and 146 for a two hand)
 
@@ -109,8 +117,9 @@ class SignRecognizerTransformer(nn.Module):
         if ff_dim is None:
             ff_dim = d_model * 4
 
+
         self.embedding: nn.Linear = nn.Linear(feature_dim, d_model).to(self.device)  # On projette feature_dim → d_model
-        self.pos_encoding: nn.Parameter = nn.Parameter(torch.randn(1, seq_len, d_model)).to(self.device)  # Encodage positionnel
+        self.pos_encoding: nn.Parameter = nn.Parameter(torch.randn(1, model_info.memory_frame, d_model)).to(self.device)  # Encodage positionnel
 
         # Empilement des encodeurs
         self.encoder_layers: nn.ModuleList[SignRecognizerTransformerLayer] = nn.ModuleList([
@@ -119,6 +128,11 @@ class SignRecognizerTransformer(nn.Module):
 
         self.fc: nn.Linear = nn.Linear(d_model, len(self.info.labels)).to(self.device)  # Couche finale de classification
 
+        self.info.d_model = d_model
+        self.info.num_heads = num_heads
+        self.info.num_layers = num_layers
+        self.info.ff_dim = ff_dim
+
         self.to(self.device)
 
     @classmethod
@@ -126,7 +140,9 @@ class SignRecognizerTransformer(nn.Module):
         json_files = glob.glob(f"{model_dir}/*.json")
         if len(json_files) == 0:
             raise FileNotFoundError(f"No .json file found in {model_dir}")
-        cls = cls(ModelInfo.from_json_file(json_files[0]), 15, 32, 8, 3, device=device)
+        info: ModelInfo = ModelInfo.from_json_file(json_files[0])
+        print(info)
+        cls = cls(info, info.d_model, info.num_heads, info.num_layers, info.ff_dim, device=device)
 
         pth_files = glob.glob(f"{model_dir}/*.pth")
         if len(pth_files) == 0:
