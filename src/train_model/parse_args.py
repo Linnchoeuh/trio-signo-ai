@@ -32,6 +32,7 @@ class Args:
 
 def parse_args() -> Args:
     args = Args()
+    print(args.device_type)
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -168,6 +169,7 @@ def parse_args() -> Args:
         type=int)
 
     term_args: argparse.Namespace = parser.parse_args(namespace=args)
+    print("ogh", term_args, type(term_args))
 
     args.trainset_path = term_args.trainset
     # args.arch = term_args.arch
@@ -175,8 +177,11 @@ def parse_args() -> Args:
     args.name = term_args.name
     args.epoch = term_args.epoch
 
-
+    print("ogh", term_args)
     args.device_type = term_args.device
+    print("Requested device:", args.device_type)
+    print("CUDA available:", torch.cuda.is_available())
+    print("ROCm available:", torch.backends.mps.is_available())
     print("Device selection... ", end="", flush=True)
     args.device = torch.device("cpu")
     if args.device_type in ["gpu", "cuda"] and torch.cuda.is_available():
@@ -193,6 +198,7 @@ def parse_args() -> Args:
         # Default to CPU
         print("Using CPU")
 
+    exit()
 
     args.balance_weights = term_args.balance_weights
     # args.min_neuron = term_args.min_neuron
