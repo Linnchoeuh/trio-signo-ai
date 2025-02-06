@@ -119,15 +119,15 @@ class SignRecognizerTransformer(nn.Module):
             ff_dim = d_model * 4
 
 
-        self.embedding: nn.Linear = nn.Linear(feature_dim, d_model).to(self.device)  # On projette feature_dim → d_model
-        self.pos_encoding: nn.Parameter = nn.Parameter(torch.randn(1, model_info.memory_frame, d_model)).to(self.device)  # Encodage positionnel
+        self.embedding: nn.Linear = nn.Linear(feature_dim, d_model)  # On projette feature_dim → d_model
+        self.pos_encoding: nn.Parameter = nn.Parameter(torch.randn(1, model_info.memory_frame, d_model))  # Encodage positionnel
 
         # Empilement des encodeurs
         self.encoder_layers: nn.ModuleList[SignRecognizerTransformerLayer] = nn.ModuleList([
             SignRecognizerTransformerLayer(d_model, num_heads, ff_dim) for _ in range(num_layers)
-        ]).to(self.device)
+        ])
 
-        self.fc: nn.Linear = nn.Linear(d_model, len(self.info.labels)).to(self.device)  # Couche finale de classification
+        self.fc: nn.Linear = nn.Linear(d_model, len(self.info.labels))  # Couche finale de classification
 
         self.info.d_model = d_model
         self.info.num_heads = num_heads
@@ -162,11 +162,13 @@ class SignRecognizerTransformer(nn.Module):
             model_name = model_name[:-4]
         if model_name.endswith(".json"):
             model_name = model_name[:-5]
+        print(f"Saving model to {model_name}...", end="", flush=True)
 
         os.makedirs(model_name, exist_ok=True)
         full_name = f"{model_name}/{model_name}"
         torch.save(self.state_dict(), full_name + ".pth")
         self.info.to_json_file(full_name + ".json")
+        print("[DONE]")
 
     def forward(self, x: torch.Tensor):
         x = self.embedding(x) + self.pos_encoding  # Embedding + Positional Encoding
