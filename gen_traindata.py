@@ -30,7 +30,7 @@ OPTIONS:
 \t-f: (-f [integer]) Number of frame in the past in the training set
 \t-x: (-s [string (label)]) NULL dataset: Define the null labeled output for the model further training data.
 \t-b: (-b (enables)) Balance the number of element between label in the training dataset
-\t-b: (-o (enables)) One sides all the sign making left and right hand the same
+\t-o: (-o (enables)) One sides all the sign making left and right hand the same
 \t-a: (-a [string]) Active point: Let you define which point to activate in the training dataset
 \t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
@@ -92,7 +92,7 @@ def create_subset(sample: DataSample2, nb_frame: int, data_samples: dict[str, li
 
     return list(sub_sample)
 
-def summary_checker(dataset_name: str, null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, active_gesture: ActiveGestures = None):
+def summary_checker(dataset_name: str, null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, one_side: bool, active_gesture: ActiveGestures = None):
     print(f"Dataset name: {dataset_name}")
     print(f"Null label: {null_label}")
     print(f"Labels: {labels}")
@@ -100,6 +100,7 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
     print(f"Number of frame: {nb_frame}")
     print(f"Active gesture: {active_gesture}")
     print(f"Output file: {file_name}")
+    print(f"One side: {one_side}")
     answer = None
     while answer != "y":
         answer = input("Do you want to continue? (y/n): ")
@@ -191,7 +192,7 @@ def main():
         formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
         dataset_name = f"trainset_{formatted_date}"
 
-    summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
+    summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, one_side, active_gesture)
 
     train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, nb_frame, active_gesture, one_side=one_side))
 
