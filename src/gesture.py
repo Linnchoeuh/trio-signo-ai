@@ -19,7 +19,10 @@ def is_valid_field(field_name: str, valid_fields: list[str] | None) -> bool:
 T = TypeVar('T')
 @dataclass
 class Gestures(Generic[T]):
-    # NEVER CHANGE THE POINTS ORDER OR IT WILL BACKWARD COMPATIBILITY
+    # NEVER CHANGE THE POINTS ORDER OR IT WILL BREAK BACKWARD COMPATIBILITY
+
+    # Always start your variable name with the hand side (l_ or r_)
+    # Method move_one_side() use this prefix to work
 
     # Left hand data
     l_hand_position: T = None
@@ -475,7 +478,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         # Mirroring the hand make the hand become the opposite hand
         # This if statement will swap the left hand and right hand data
         if (x + y + z) % 2 == 1:
-            self.swap_hands()
+            self.swapHands()
         return self
 
     def rotate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -513,7 +516,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
             setattr(self, field_name, field_value)
         return self
 
-    def swap_hands(self) -> "DataGestures":
+    def swapHands(self) -> "DataGestures":
         """Should not be used.<br>
         This function is used to swap the left hand and right hand data,
         in case the hands are mirrored or the data is not in the right order.
@@ -551,5 +554,15 @@ class DataGestures(Gestures[list[float, float, float] | None]):
 
         return self
 
-    def one_side(self, right_side: bool = True) -> "DataGestures":
-        pass
+    def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
+        dest_side = "r_" if right_side else "l_"
+        src_side = "l_" if right_side else "r_"
+
+        for field_name in FIELDS:
+            if field_name.startswith(src_side):
+                src_side_val: list[float] | None = getattr(self, field_name)
+                opposite_field_name = field_name.replace(src_side, dest_side, 1)
+                dest_side_value: list[float] | None = getattr(self, field_name.replace(src_side, dest_side))
+                if dest_side_value is None:
+                    setattr(self, opposite_field_name, src_side_val)
+                    setattr(self, field_name, None)

@@ -36,7 +36,8 @@ class ModelInfo(DataSamplesInfo):
             label_map=info.label_map,
             memory_frame=info.memory_frame,
             active_gestures=active_gestures,
-            name=name
+            name=name,
+            one_side=info.one_side
         )
 
     @classmethod

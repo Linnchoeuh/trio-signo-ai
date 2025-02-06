@@ -430,54 +430,59 @@ class DataSample2:
             DataSample2: _description_
         """
         for gesture in self.gestures:
-            gesture.swap_hands()
+            gesture.swapHands()
         return self
 
-@dataclass
-class TrainDataInfo:
-    labels: list[str]
-    label_map: dict[str, int]
-    memory_frame: int
-    active_gestures: ActiveGestures
+    def move_to_one_side(self, right_side: bool = True) -> 'DataSample2':
+        for gesture in self.gestures:
+            gesture.moveToOneSide(right_side)
+        return self
+
+# @dataclass
+# class TrainDataInfo:
+#     labels: list[str]
+#     label_map: dict[str, int]
+#     memory_frame: int
+#     active_gestures: ActiveGestures
 
 
-    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None):
-        self.labels = labels
-        self.memory_frame = memory_frame
-        self.active_gestures = active_gestures
-        self.label_map = label_map
+#     def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None):
+#         self.labels = labels
+#         self.memory_frame = memory_frame
+#         self.active_gestures = active_gestures
+#         self.label_map = label_map
 
 
-        if self.label_map is None:
-            self.label_map = {label: i for i, label in enumerate(labels)}
-        else:
-            for label in labels:
-                if label not in self.label_map:
-                    raise ValueError(f"Label {label} not found in label_map")
+#         if self.label_map is None:
+#             self.label_map = {label: i for i, label in enumerate(labels)}
+#         else:
+#             for label in labels:
+#                 if label not in self.label_map:
+#                     raise ValueError(f"Label {label} not found in label_map")
 
-    @classmethod
-    def from_dict(cls, data: dict):
-        active_gest_dict: dict = data.get('active_gestures', None)
-        active_gest: ActiveGestures = None
-        if active_gest_dict is not None:
-            active_gest = ActiveGestures(**active_gest_dict)
-        return cls(
-            labels=data['labels'],
-            memory_frame=data['memory_frame'],
-            active_gestures=active_gest,
-            label_map=data.get('label_map', None),
-        )
+#     @classmethod
+#     def from_dict(cls, data: dict):
+#         active_gest_dict: dict = data.get('active_gestures', None)
+#         active_gest: ActiveGestures = None
+#         if active_gest_dict is not None:
+#             active_gest = ActiveGestures(**active_gest_dict)
+#         return cls(
+#             labels=data['labels'],
+#             memory_frame=data['memory_frame'],
+#             active_gestures=active_gest,
+#             label_map=data.get('label_map', None),
+#         )
 
-    def to_dict(self):
-        active_gestures = self.active_gestures
-        if self.active_gestures is not None:
-            active_gestures = self.active_gestures.to_dict()
-        return {
-            'labels': self.labels,
-            'memory_frame': self.memory_frame,
-            'active_gestures': active_gestures,
-            'label_map': self.label_map
-        }
+#     def to_dict(self):
+#         active_gestures = self.active_gestures
+#         if self.active_gestures is not None:
+#             active_gestures = self.active_gestures.to_dict()
+#         return {
+#             'labels': self.labels,
+#             'memory_frame': self.memory_frame,
+#             'active_gestures': active_gestures,
+#             'label_map': self.label_map
+#         }
 
 # @dataclass
 # class TrainData:
@@ -570,181 +575,181 @@ class TrainDataInfo:
 #             labels += [i] * len(self.samples[i])
 #         return labels
 
-class TrainData2:
-    info: TrainDataInfo
-    samples: list[set[tuple[int, tuple[float]]]] # (label)list[(gesture)set[(datasample)tuple[(id)int, (frames)tuple[float]]]]
-    # samples: list[set[tuple[float]]] # (label)list[(gesture)set[(datasample)tuple[float]]]
-    sample_count: int
+# class TrainData2:
+#     info: TrainDataInfo
+#     samples: list[set[tuple[int, tuple[float]]]] # (label)list[(gesture)set[(datasample)tuple[(id)int, (frames)tuple[float]]]]
+#     # samples: list[set[tuple[float]]] # (label)list[(gesture)set[(datasample)tuple[float]]]
+#     sample_count: int
 
-    def __init__(self, info: TrainDataInfo, samples: list[set[tuple[float]]] = None):
-        self.info = info
+#     def __init__(self, info: TrainDataInfo, samples: list[set[tuple[float]]] = None):
+#         self.info = info
 
-        self.valid_fields: list[str] = info.active_gestures.getActiveFields()
-        if samples is not None:
-            if len(samples) != len(info.labels):
-                raise ValueError("Samples length does not match the number of labels")
-            self.samples = samples
-        else:
-            self.samples = []
-            while len(self.samples) < len(info.labels):
-                self.samples.append(set())
-        self.sample_count = sum([len(label_samples) for label_samples in self.samples])
+#         self.valid_fields: list[str] = info.active_gestures.getActiveFields()
+#         if samples is not None:
+#             if len(samples) != len(info.labels):
+#                 raise ValueError("Samples length does not match the number of labels")
+#             self.samples = samples
+#         else:
+#             self.samples = []
+#             while len(self.samples) < len(info.labels):
+#                 self.samples.append(set())
+#         self.sample_count = sum([len(label_samples) for label_samples in self.samples])
 
-    @classmethod
-    def from_dict(cls, json_data):
+#     @classmethod
+#     def from_dict(cls, json_data):
 
-        sample_count: int = 0
-        samples: list[set[tuple[int, tuple[float]]]] = []
-        dict_sample: list[list[list[float]]] = json_data['samples']
+#         sample_count: int = 0
+#         samples: list[set[tuple[int, tuple[float]]]] = []
+#         dict_sample: list[list[list[float]]] = json_data['samples']
 
-        for sample_label_id in range(len(dict_sample)):
-            # Create the "list[set]" part
-            samples.append(set())
-            for sample in dict_sample[sample_label_id]:
-                # Create the "tuple[int, tuple[float]]" part and add it to the appropriated "set"
-                samples[-1].add((sample_count, tuple(sample)))
-                # samples[-1].add(tuple(sample))
+#         for sample_label_id in range(len(dict_sample)):
+#             # Create the "list[set]" part
+#             samples.append(set())
+#             for sample in dict_sample[sample_label_id]:
+#                 # Create the "tuple[int, tuple[float]]" part and add it to the appropriated "set"
+#                 samples[-1].add((sample_count, tuple(sample)))
+#                 # samples[-1].add(tuple(sample))
 
-                sample_count += 1
+#                 sample_count += 1
 
-        return cls(
-            info=TrainDataInfo.from_dict(json_data['info']),
-            samples=samples
-        )
+#         return cls(
+#             info=TrainDataInfo.from_dict(json_data['info']),
+#             samples=samples
+#         )
 
-    @classmethod
-    def from_json_file(cls, file_path: str):
-        with open(file_path, 'r', encoding="utf-8") as f:
-            data = json.load(f)
-        return cls.from_dict(data)
+#     @classmethod
+#     def from_json_file(cls, file_path: str):
+#         with open(file_path, 'r', encoding="utf-8") as f:
+#             data = json.load(f)
+#         return cls.from_dict(data)
 
-    @classmethod
-    def from_cbor(cls, cbor_data):
-        return cls.from_dict(cbor2.loads(cbor_data))
+#     @classmethod
+#     def from_cbor(cls, cbor_data):
+#         return cls.from_dict(cbor2.loads(cbor_data))
 
-    @classmethod
-    def from_cbor_file(cls, file_path: str):
-        with open(file_path, 'rb') as f:
-            data = f.read()
-        return cls.from_cbor(data)
+#     @classmethod
+#     def from_cbor_file(cls, file_path: str):
+#         with open(file_path, 'rb') as f:
+#             data = f.read()
+#         return cls.from_cbor(data)
 
-    def getNumberOfSamples(self):
-        self.sample_count = 0
-        for i in range(len(self.samples)):
-            self.sample_count += len(self.samples[i])
-        return self.sample_count
+#     def getNumberOfSamples(self):
+#         self.sample_count = 0
+#         for i in range(len(self.samples)):
+#             self.sample_count += len(self.samples[i])
+#         return self.sample_count
 
-    def to_dict(self) -> dict:
-        self.sample_count = self.getNumberOfSamples()
+#     def to_dict(self) -> dict:
+#         self.sample_count = self.getNumberOfSamples()
 
-        count: int = 0
-        samples: list[list[list[float]]] = []
-        for i in range(len(self.samples)):
-            # list[list[tuple[int, tuple[float]]]] replaces "set" by "list"
-            samples.append(list(self.samples[i]))
-            for k in range(len(self.samples[i])):
-                # list[list[list[float]]] replaces "tuple[int, tuple[float]]" by "list[float]"
-                # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
-                samples[i][k] = list(samples[i][k][1])
-                # samples[i][k] = list(samples[i][k])
-                count += 1
-        tmp: dict = self.__dict__
-        tmp["info"] = self.info.to_dict()
-        tmp["samples"] = samples
-        return tmp
+#         count: int = 0
+#         samples: list[list[list[float]]] = []
+#         for i in range(len(self.samples)):
+#             # list[list[tuple[int, tuple[float]]]] replaces "set" by "list"
+#             samples.append(list(self.samples[i]))
+#             for k in range(len(self.samples[i])):
+#                 # list[list[list[float]]] replaces "tuple[int, tuple[float]]" by "list[float]"
+#                 # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
+#                 samples[i][k] = list(samples[i][k][1])
+#                 # samples[i][k] = list(samples[i][k])
+#                 count += 1
+#         tmp: dict = self.__dict__
+#         tmp["info"] = self.info.to_dict()
+#         tmp["samples"] = samples
+#         return tmp
 
-    def to_json_file(self, file_path: str, indent: int | str | None = 0):
-        with open(file_path, 'w', encoding="utf-8") as f:
-            json.dump(self.to_dict(), f, indent=indent)
+#     def to_json_file(self, file_path: str, indent: int | str | None = 0):
+#         with open(file_path, 'w', encoding="utf-8") as f:
+#             json.dump(self.to_dict(), f, indent=indent)
 
-    def to_cbor(self) -> bytes:
-        return cbor2.dumps(self.to_dict())
+#     def to_cbor(self) -> bytes:
+#         return cbor2.dumps(self.to_dict())
 
-    def to_cbor_file(self, file_path: str):
-        with open(file_path, 'wb') as f:
-            f.write(self.to_cbor())
+#     def to_cbor_file(self, file_path: str):
+#         with open(file_path, 'wb') as f:
+#             f.write(self.to_cbor())
 
-    def add_data_sample(self, data_sample: DataSample2):
-        # Get or cache label_id
-        label_id = self.info.label_map[data_sample.label]
+#     def add_data_sample(self, data_sample: DataSample2):
+#         # Get or cache label_id
+#         label_id = self.info.label_map[data_sample.label]
 
-        # Convert the array to a tuple once
-        sample_data = tuple(data_sample.samples_to_1d_array(self.valid_fields))
+#         # Convert the array to a tuple once
+#         sample_data = tuple(data_sample.samples_to_1d_array(self.valid_fields))
 
-        # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
-        self.samples[label_id].add((self.sample_count, sample_data))
-        # self.samples[label_id].add(sample_data)
+#         # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
+#         self.samples[label_id].add((self.sample_count, sample_data))
+#         # self.samples[label_id].add(sample_data)
 
-        # Increment the overall sample count
-        self.sample_count += 1
+#         # Increment the overall sample count
+#         self.sample_count += 1
 
-    def add_data_samples(self, data_samples: list[DataSample2]):
-        for data_sample in data_samples:
-            # print(type(data_sample))
-            self.add_data_sample(data_sample)
+#     def add_data_samples(self, data_samples: list[DataSample2]):
+#         for data_sample in data_samples:
+#             # print(type(data_sample))
+#             self.add_data_sample(data_sample)
 
-    def get_input_data(self) -> list[list[float]]:
-        """Transform the trainset data into a 1 dimension array
-        where each list[float] is a sample
+#     def get_input_data(self) -> list[list[float]]:
+#         """Transform the trainset data into a 1 dimension array
+#         where each list[float] is a sample
 
-        Returns:
-            list[list[float]]: _description_
-        """
-        samples: list[list[float]] = []
-        for label_sorted_samples in self.samples:
-            for sample in label_sorted_samples: # Get all the sample stored in the "set"
-                # Convert the "tuple[int, tuple[float]]" to "list[float]"
-                # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
-                samples.append(list(sample[1]))
-                # samples.append(list(sample))
-        return samples
+#         Returns:
+#             list[list[float]]: _description_
+#         """
+#         samples: list[list[float]] = []
+#         for label_sorted_samples in self.samples:
+#             for sample in label_sorted_samples: # Get all the sample stored in the "set"
+#                 # Convert the "tuple[int, tuple[float]]" to "list[float]"
+#                 # We discard the id of the sample and convert the "tuple[float]" to "list[float]"
+#                 samples.append(list(sample[1]))
+#                 # samples.append(list(sample))
+#         return samples
 
-    def get_output_data(self) -> list[int]:
-        labels: list[int] = []
-        for i in range(len(self.samples)):
-            labels += [i] * len(self.samples[i])
-        return labels
+#     def get_output_data(self) -> list[int]:
+#         labels: list[int] = []
+#         for i in range(len(self.samples)):
+#             labels += [i] * len(self.samples[i])
+#         return labels
 
-    def split_trainset(self, ratio: float = 0.8) -> tuple['TrainData2', 'TrainData2']:
-        """Split the trainset into two trainset
+#     def split_trainset(self, ratio: float = 0.8) -> tuple['TrainData2', 'TrainData2']:
+#         """Split the trainset into two trainset
 
-        Args:
-            ratio (float, optional): Ratio of the first trainset. Defaults to 0.8.
+#         Args:
+#             ratio (float, optional): Ratio of the first trainset. Defaults to 0.8.
 
-        Returns:
-            tuple[TrainData2, TrainData2]: The two trainset
-        """
-        trainset1 = TrainData2(info=copy.deepcopy(self.info))
-        trainset2 = TrainData2(info=copy.deepcopy(self.info))
+#         Returns:
+#             tuple[TrainData2, TrainData2]: The two trainset
+#         """
+#         trainset1 = TrainData2(info=copy.deepcopy(self.info))
+#         trainset2 = TrainData2(info=copy.deepcopy(self.info))
 
-        for i in range(len(self.samples)):
+#         for i in range(len(self.samples)):
 
-            total_label_samples = len(self.samples[i])
-            label_sample: set[tuple[int, tuple[float]]] = list(self.samples[i])
+#             total_label_samples = len(self.samples[i])
+#             label_sample: set[tuple[int, tuple[float]]] = list(self.samples[i])
 
-            while len(label_sample) / total_label_samples > ratio:
-                trainset2.samples[i].add(
-                    label_sample.pop(random.randint(0, len(label_sample) - 1))
-                )
-            trainset1.samples[i] = set(label_sample)
+#             while len(label_sample) / total_label_samples > ratio:
+#                 trainset2.samples[i].add(
+#                     label_sample.pop(random.randint(0, len(label_sample) - 1))
+#                 )
+#             trainset1.samples[i] = set(label_sample)
 
-        trainset1.getNumberOfSamples()
-        trainset2.getNumberOfSamples()
-        return trainset1, trainset2
+#         trainset1.getNumberOfSamples()
+#         trainset2.getNumberOfSamples()
+#         return trainset1, trainset2
 
-    def get_class_weights(self, balance_weight: bool = True) -> torch.Tensor:
-        weigths: list[float] = []
-        if balance_weight:
-            smallest_class = len(self.samples[0])
-            for sample in self.samples:
-                if len(sample) < smallest_class:
-                    smallest_class = len(sample)
-            for sample in self.samples:
-                weigths.append(smallest_class / len(sample))
-        else:
-            for sample in self.samples:
-                weigths.append(1)
-        total = sum(weigths)
-        weigths = [weight / total for weight in weigths]
-        # print(weigths)
-        return torch.tensor(weigths, dtype=torch.float32)
+#     def get_class_weights(self, balance_weight: bool = True) -> torch.Tensor:
+#         weigths: list[float] = []
+#         if balance_weight:
+#             smallest_class = len(self.samples[0])
+#             for sample in self.samples:
+#                 if len(sample) < smallest_class:
+#                     smallest_class = len(sample)
+#             for sample in self.samples:
+#                 weigths.append(smallest_class / len(sample))
+#         else:
+#             for sample in self.samples:
+#                 weigths.append(1)
+#         total = sum(weigths)
+#         weigths = [weight / total for weight in weigths]
+#         # print(weigths)
+#         return torch.tensor(weigths, dtype=torch.float32)

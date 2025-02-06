@@ -11,13 +11,15 @@ class DataSamplesInfo:
     label_map: dict[str, int]
     memory_frame: int
     active_gestures: ActiveGestures
+    one_side: bool
 
 
-    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None):
+    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None, one_side: bool = False):
         self.labels = labels
         self.memory_frame = memory_frame
         self.active_gestures = active_gestures
         self.label_map = label_map
+        self.one_side = one_side
 
 
         if self.label_map is None:
@@ -38,6 +40,7 @@ class DataSamplesInfo:
             memory_frame=data['memory_frame'],
             active_gestures=active_gest,
             label_map=data.get('label_map', None),
+            one_side=data.get('one_side', False)
         )
 
     def toDict(self):
@@ -48,7 +51,8 @@ class DataSamplesInfo:
             'labels': self.labels,
             'memory_frame': self.memory_frame,
             'active_gestures': active_gestures,
-            'label_map': self.label_map
+            'label_map': self.label_map,
+            'one_side': self.one_side
         }
 
 class DataSamples:
@@ -149,7 +153,10 @@ class DataSamples:
         # Get or cache label_id
         label_id = self.info.label_map.get(data_sample.label)
         if label_id is None:
-            raise ValueError(f"Label {data_sample.label} is not register in label_map of this DataSamples class.")
+            raise ValueError(f"Label {data_sample.label} is not registered in label_map of this DataSamples class.")
+
+        if self.info.one_side:
+            data_sample.move_to_one_side()
 
         # Use self.sample_count as a unique identifier instead of len(self.samples[label_id])
         self.samples[label_id][id(data_sample)] = data_sample
