@@ -196,8 +196,6 @@ def parse_args() -> Args:
         # Default to CPU
         print("Using CPU")
 
-    exit()
-
     args.balance_weights = term_args.balance_weights
     # args.min_neuron = term_args.min_neuron
     # args.max_neuron = term_args.max_neuron

@@ -77,6 +77,7 @@ class DataSamples:
 
         for sample_label_id in range(len(dict_sample)):
             current_label: str = cls.info.labels[sample_label_id]
+            print(f"\rLoading label: {current_label}/{len(cls.info.labels)}", end="", flush=True)
             for sample in dict_sample[sample_label_id]:
                 new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
                 cls.samples[sample_label_id][id(new_datasample)] = new_datasample
