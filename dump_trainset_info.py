@@ -12,5 +12,5 @@ print(f"Active gestures:")
 for field in traindata.info.active_gestures.getActiveFields():
     print(f"\t{field}")
 
-tensors = traindata.toTensors()
-print(f"Train data tensors: {tensors[0].shape}")
+# tensors = traindata.toTensors()
+# print(f"Train data tensors: {tensors[0].shape}")
