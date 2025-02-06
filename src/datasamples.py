@@ -73,14 +73,18 @@ class DataSamples:
     @classmethod
     def fromDict(cls, json_data):
         cls = cls(info=DataSamplesInfo.fromDict(json_data['info']))
-        dict_sample: list[list[float]] = json_data['samples']
+        dict_sample: list[list[list[float]]] = json_data['samples']
+        print(len(cls.samples))
 
-        for sample_label_id in range(len(dict_sample)):
+        sample_label_id: int = 0
+        for labeled_samples in dict_sample:
             current_label: str = cls.info.labels[sample_label_id]
             print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.labels)}", end="", flush=True)
-            for sample in dict_sample[sample_label_id]:
+            for sample in labeled_samples:
                 # new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
                 cls.samples[sample_label_id][id(sample)] = sample
+                # print(len(cls.samples[sample_label_id]))
+            sample_label_id += 1
         cls.getNumberOfSamples()
         return cls
 
@@ -107,16 +111,17 @@ class DataSamples:
     def toDict(self) -> dict:
         # self.sample_count = self.getNumberOfSamples()
 
-        # samples: list[list[float]] = []
-        # for i in range(len(self.samples)):
-        #     samples.append([])
-        #     for sample in self.samples[i].values():
-        #         # samples[-1].append(sample.flat(self.valid_fields))
-        #         samples[-1].append(sample)
+        samples: list[list[list[float]]] = []
+        for labeled_samples in self.samples:
+            tmp: list[list[float]] = []
+            for sample in labeled_samples.values():
+                # samples[-1].append(sample.flat(self.valid_fields))
+                tmp.append(sample)
+            samples.append(tmp)
 
         return {
             "info": self.info.toDict(),
-            "samples": self.samples
+            "samples": samples
         }
 
     def toJsonFile(self, file_path: str, indent: int | str | None = 0):
@@ -166,7 +171,7 @@ class DataSamples:
         while len(keys) > 0:
             key = keys.pop()
             output_data.append(all_samples[key][1])
-            input_data.append(DataSample2.unflat(all_samples[key][0], self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields, device))
+            input_data.append(DataSample2.unflat("", all_samples[key][0], self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields, device))
 
         if split_ratio > 0:
             split_index = int(len(input_data) * split_ratio)
