@@ -168,8 +168,7 @@ def parse_args() -> Args:
         default=args.ff_dim,
         type=int)
 
-    term_args: argparse.Namespace = parser.parse_args(namespace=args)
-    print("ogh", term_args, type(term_args))
+    term_args: argparse.Namespace = parser.parse_args()
 
     args.trainset_path = term_args.trainset
     # args.arch = term_args.arch
@@ -177,7 +176,6 @@ def parse_args() -> Args:
     args.name = term_args.name
     args.epoch = term_args.epoch
 
-    print("ogh", term_args)
     args.device_type = term_args.device
     print("Requested device:", args.device_type)
     print("CUDA available:", torch.cuda.is_available())
