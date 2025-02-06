@@ -31,11 +31,11 @@ def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_we
     train_in_data, train_out_data, validation_in_data, validation_out_data = train_data.toTensors(device, validation_ratio)
 
 
+    train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(train_in_data, train_out_data), batch_size=batch_size, shuffle=True)
+
     validation_dataloader: DataLoader = None
     if validation_ratio > 0:
         validation_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(validation_in_data, validation_out_data), batch_size=batch_size, shuffle=True)
-    train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(train_in_data, train_out_data), batch_size=batch_size, shuffle=True)
-
 
     balance_weights: bool = True if str(balance_weights).lower() in ["true", "1", "yes"] else False
     weigths_balance: torch.Tensor = None

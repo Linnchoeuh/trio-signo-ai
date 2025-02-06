@@ -51,7 +51,7 @@ def train_epoch(model: SignRecognizerTransformer, dataloader: DataLoader, criter
     accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.labels)
 
     for inputs, labels in dataloader:
-        # inputs, labels = inputs.to(model.device), labels.to(model.device)
+        inputs, labels = inputs.to(model.device), labels.to(model.device)
         loss, outputs = train_epoch_run_model(model, criterion, inputs, labels)
         train_epoch_optimize(optimizer, loss)
 

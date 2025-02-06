@@ -32,7 +32,7 @@ def gen_static_data(sample: DataSample2, nb_frame: int, data_samples: dict[str, 
             tmp_sample = make_new_sample_variation(sample)
             target_nb_frame: int = random.randint(2, nb_frame)
             while len(tmp_sample.gestures) < target_nb_frame:
-                val: int = random.randint(0, nb_frame / 2)
+                val: int = random.randint(0, nb_frame // 2)
                 # Since these sample need to be valid, we don't insert at position 0 as we should be.
                 # This way we can ensure that the first frame is always the sign.
 
