@@ -11,10 +11,11 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset, DataLoader
 
 from src.datasample import *
+from src.datasamples import *
 from src.train_model.AccuracyCalculator import AccuracyCalculator
 
 @dataclass
-class ModelInfo(TrainDataInfo):
+class ModelInfo(DataSamplesInfo):
     layers: list[int]
     name: str
     mode_arch: str = "v1"

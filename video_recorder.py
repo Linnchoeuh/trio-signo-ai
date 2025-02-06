@@ -103,6 +103,8 @@ while True:
         frame_history.insert_gesture_from_landmarks(0, result)
         while len(frame_history.gestures) > sign_rec.info.memory_frame:
             frame_history.gestures.pop(-1)
+        if sign_rec.info.one_side:
+            frame_history.move_to_one_side()
 
         # frame_history.gestures.reverse()
         recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields())
