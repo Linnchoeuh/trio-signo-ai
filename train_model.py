@@ -19,10 +19,10 @@ args: Args = parse_args()
 
 model: SignRecognizerTransformer = None
 
-# if args.model_path:
-#     print("Loading model...", end="", flush=True)
-#     model = SignRecognizerV1.loadModelFromDir(args.model_path)
-#     print("[DONE]")
+if args.model_path:
+    print("Loading model...", end="", flush=True)
+    model = SignRecognizerTransformer.loadModelFromDir(args.model_path)
+    print("[DONE]")
 
 
 train_data, validation_data, model_info, weights_balance = init_train_set(args.trainset_path, args.validation_set_ratio, args.balance_weights, 32, args.name)
