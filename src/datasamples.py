@@ -6,6 +6,12 @@ from src.gesture import *
 from src.datasample import *
 
 @dataclass
+class TrainTensors:
+    train: tuple[torch.Tensor, torch.Tensor]
+    confusion: tuple[torch.Tensor, torch.Tensor]
+    validation: tuple[torch.Tensor, torch.Tensor]
+
+@dataclass
 class DataSamplesInfo:
     labels: list[str]
     label_map: dict[str, int]
@@ -74,12 +80,12 @@ class DataSamples:
     def fromDict(cls, json_data):
         cls = cls(info=DataSamplesInfo.fromDict(json_data['info']))
         dict_sample: list[list[list[float]]] = json_data['samples']
-        print(len(cls.samples))
+        # print(len(cls.samples))
 
         sample_label_id: int = 0
         for labeled_samples in dict_sample:
             current_label: str = cls.info.labels[sample_label_id]
-            print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.labels)}", end="", flush=True)
+            # print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.labels)}", end="", flush=True)
             for sample in labeled_samples:
                 # new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
                 cls.samples[sample_label_id][id(sample)] = sample
@@ -156,27 +162,59 @@ class DataSamples:
     #         return torch.stack(input_data[:split_index]), torch.tensor(output_data[:split_index]), torch.stack(input_data[split_index:]), torch.tensor(output_data[split_index:])
     #     return torch.stack(input_data), torch.tensor(output_data), None, None
 
-    def toTensors(self, device: torch.device = torch.device("cpu"), split_ratio: float = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        all_samples: dict[int, tuple[list[float], int]] = {}
+    def toTensors(self, split_ratio: float = 0, confused_label: list[int] = [], include_confused_label_in_train: bool = True) -> TrainTensors:
+        samples_out_of_dict: list[list[list[float]]] = []
 
-        for i in range(len(self.samples)):
-            for _id, sample in self.samples[i].items():
-                all_samples[_id] = (sample, i)
+        def convert_to_tensor(samples: list[list[float]]) -> torch.Tensor | None:
+            if len(samples) == 0:
+                return None
+            sub_step: list[torch.Tensor] = []
+            for sample in samples:
+                sub_step.append(DataSample2.unflat("", sample, self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields))
+            return torch.stack(sub_step)
 
-        keys = random.sample(list(all_samples.keys()), len(all_samples))
+        for sample_from_label in self.samples:
+            tmp: list[float] = list(sample_from_label.values())
+            random.shuffle(tmp)
+            samples_out_of_dict.append(tmp)
 
-        input_data: list[torch.Tensor] = []
-        output_data: list[int] = []
+        train_in: list[list[float]] = []
+        train_out: list[int] = []
+        confusion_in: list[list[float]] = []
+        confusion_out: list[int] = []
+        validation_in: list[list[float]] = []
+        validation_out: list[int] = []
 
-        while len(keys) > 0:
-            key = keys.pop()
-            output_data.append(all_samples[key][1])
-            input_data.append(DataSample2.unflat("", all_samples[key][0], self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields, device))
+        for i in range(len(samples_out_of_dict)):
+            split_index = int(len(samples_out_of_dict[i]) * split_ratio)
+            if i in confused_label:
+                confusion_in += samples_out_of_dict[i][:split_index]
+                confusion_out += [i] * split_index
+            if include_confused_label_in_train or i not in confused_label:
+                train_in += samples_out_of_dict[i][:split_index]
+                train_out += [i] * split_index
+            validation_in += samples_out_of_dict[i][split_index:]
+            validation_out += [i] * (len(samples_out_of_dict[i]) - split_index)
 
-        if split_ratio > 0:
-            split_index = int(len(input_data) * split_ratio)
-            return torch.stack(input_data[:split_index]), torch.tensor(output_data[:split_index]), torch.stack(input_data[split_index:]), torch.tensor(output_data[split_index:])
-        return torch.stack(input_data), torch.tensor(output_data), None, None
+        return TrainTensors(
+            train=(convert_to_tensor(train_in), torch.tensor(train_out)),
+            confusion=(convert_to_tensor(confusion_in), torch.tensor(confusion_out)),
+            validation=(convert_to_tensor(validation_in), torch.tensor(validation_out))
+        )
+
+    def getTensorsFromLabel(self, label: str, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
+        label_id = self.info.label_map.get(label)
+        tensors: list[torch.Tensor] = []
+        if label_id is None:
+            raise ValueError(f"Label {label} is not registered in label_map of this DataSamples class.")
+
+        for sample in self.samples[label_id].values():
+            tensors.append(DataSample2.unflat(label, sample, self.valid_fields).to_tensor(self.info.memory_frame, self.valid_fields, device))
+
+        return tensors
+
+    def getTensorsFromLabelId(self, label_int: int, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
+        return self.getTensorsFromLabel(self.info.labels[label_int], device)
 
     def addDataSample(self, data_sample: DataSample2):
         # Get or cache label_id
