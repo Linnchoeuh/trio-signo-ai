@@ -5,8 +5,10 @@ from src.model_class.transformer_sign_recognizer import ModelInfo, SignRecognize
 
 from src.datasample import *
 from src.datasamples import *
+from src.train_model.ConfusedSets import ConfusedSets
+from src.train_model.parse_args import Args
 
-def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_weights: bool = True, batch_size: int = 16, model_name: str = None, device: torch.device = torch.device("cpu")) -> tuple[DataLoader, DataLoader | None, ModelInfo, torch.Tensor | None]:
+def init_train_set(args: Args) -> tuple[DataLoader, DataLoader | None, DataLoader | None, ModelInfo, torch.Tensor | None, ConfusedSets]:
     """_summary_
 
     Args:
@@ -20,26 +22,32 @@ def init_train_set(trainset_path: str, validation_ratio: float = 0.2, balance_we
     """
 
     print("Loading trainset...", end="", flush=True)
-    train_data: DataSamples = DataSamples.fromCborFile(trainset_path)
+    train_data: DataSamples = DataSamples.fromCborFile(args.trainset_path)
     print("[DONE]")
+    print("Labels:", train_data.info.labels) 
+
+    print("Preparing confused labels...", end="", flush=True)
+    confused_sets: ConfusedSets = ConfusedSets(confusing_pair=args.confusing_label, data_samples=train_data)
+    print("[DONE]")
+
+    print("Converting trainset to tensor...", end="", flush=True)
+    tensors: TrainTensors = train_data.toTensors(args.validation_set_ratio, confused_label=list(confused_sets.confusing_pair.keys()))
+    train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.train[0], tensors.train[1]), batch_size=args.batch_size, shuffle=True)
+    validation_dataloader: DataLoader = None
+    if tensors.validation:
+        validation_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.validation[0], tensors.validation[1]), batch_size=args.batch_size, shuffle=True)
+    confuse_dataloader: DataLoader = None
+    if tensors.confusion:
+        confuse_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.confusion[0], tensors.confusion[1]), batch_size=args.batch_size, shuffle=True)
+    print("[DONE]")
+
 
     model_info: ModelInfo = ModelInfo.build(
             info=train_data.info,
-            name=model_name)
+            name=args.name)
 
-
-    train_in_data, train_out_data, validation_in_data, validation_out_data = train_data.toTensors(device, validation_ratio)
-
-
-    train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(train_in_data, train_out_data), batch_size=batch_size, shuffle=True)
-
-    validation_dataloader: DataLoader = None
-    if validation_ratio > 0:
-        validation_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(validation_in_data, validation_out_data), batch_size=batch_size, shuffle=True)
-
-    balance_weights: bool = True if str(balance_weights).lower() in ["true", "1", "yes"] else False
     weigths_balance: torch.Tensor = None
-    if balance_weights:
+    if args.balance_weights:
         weigths_balance = train_data.getClassWeights()
 
-    return (train_dataloader, validation_dataloader, model_info, weigths_balance)
+    return (train_dataloader, validation_dataloader, confuse_dataloader, model_info, weigths_balance, confused_sets)

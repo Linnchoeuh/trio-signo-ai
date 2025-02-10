@@ -1,5 +1,5 @@
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import torch
 
@@ -28,11 +28,12 @@ class Args:
     num_heads: int = 8
     num_layers: int = 3
     ff_dim: int = None
+    confusing_label: dict[str, str] = field(default_factory=dict)
+    batch_size: int = 32
 
 
 def parse_args() -> Args:
     args = Args()
-    print(args.device_type)
 
     parser: argparse.ArgumentParser = argparse.ArgumentParser(
         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -75,8 +76,7 @@ def parse_args() -> Args:
         '--balance-weights',
         help='Balance the weight for the loss function so no label is overrepresented.',
         required=False,
-        default=args.balance_weights,
-        type=bool)
+        action='store_true')
     # parser.add_argument(
     #     '--min-neuron',
     #     help='(Only with research mode) Minimum number of neuron per layer.',
@@ -167,6 +167,20 @@ def parse_args() -> Args:
         required=False,
         default=args.ff_dim,
         type=int)
+    parser.add_argument(
+        '--confusing-label', "-c",
+        help='Give a pair of label that are ambiguous to the model.',
+        required=False,
+        default=None,
+        type=str,
+        action='extend',
+        nargs=2)
+    parser.add_argument(
+        '--batch-size',
+        help='Batch size for the training. (Bigger batch size will use more memory but will train faster)',
+        required=False,
+        default=32,
+        type=int)
 
     term_args: argparse.Namespace = parser.parse_args()
 
@@ -175,6 +189,20 @@ def parse_args() -> Args:
     args.memory_frame = term_args.memory_frame
     args.name = term_args.name
     args.epoch = term_args.epoch
+
+    print("Confusing label registered:")
+    i: int = 0
+    while i < len(term_args.confusing_label):
+        c_label = term_args.confusing_label[i]
+        c_label2 = term_args.confusing_label[i+1]
+        try:
+            assert args.confusing_label.get(c_label) is None, f"Label \"{c_label}\" already in the list. If the \"{c_label}\" is responsible of more than one label, do something like this:\n-c \"{c_label2}\" \"{c_label}\"\nInstead of:\n-c \"{c_label}\" \"{c_label2}\""
+        except AssertionError as e:
+            print("AssertionError:", e)
+            exit(1)
+        args.confusing_label[c_label] = c_label2
+        print(f"\t{c_label} <=> {c_label2}")
+        i += 2
 
     args.device_type = term_args.device
     print("Requested device:", args.device_type)
@@ -213,5 +241,5 @@ def parse_args() -> Args:
     args.num_layers = int(term_args.num_layers)
     if term_args.ff_dim is not None:
         args.ff_dim = int(term_args.ff_dim)
-
+    args.batch_size = int(term_args.batch_size)
     return args

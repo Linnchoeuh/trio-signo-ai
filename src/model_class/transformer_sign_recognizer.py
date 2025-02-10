@@ -170,8 +170,10 @@ class SignRecognizerTransformer(nn.Module):
         self.info.to_json_file(full_name + ".json")
         print("[DONE]")
 
-    def forward(self, x: torch.Tensor):
+    def forward(self, x: torch.Tensor, return_embeddings: bool = False):
         x = self.embedding(x) + self.pos_encoding  # Embedding + Positional Encoding
+        if return_embeddings:
+            return x
         x = x.permute(1, 0, 2)  # Transformer attend [seq_len, batch_size, d_model]
 
         for encoder in self.encoder_layers:
@@ -203,7 +205,7 @@ class SignRecognizerTransformerDataset(Dataset):
     def __len__(self):
         return self.num_samples  # Nombre total de samples
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> tuple[torch.Tensor, torch.Tensor]:
         """
         Retourne un tuple (X, Y)
         - X : [seq_len, num_features] -> Les features du sample
