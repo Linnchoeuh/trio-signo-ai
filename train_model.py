@@ -22,7 +22,7 @@ model: SignRecognizerTransformer = None
 
 if args.model_path:
     print("Loading model...", end="", flush=True)
-    model = SignRecognizerTransformer.loadModelFromDir(args.model_path)
+    model = SignRecognizerTransformer.loadModelFromDir(args.model_path, args.device)
     print("[DONE]")
 
 train_data, validation_data, confuse_data, model_info, weights_balance, confused_sets = init_train_set(args)

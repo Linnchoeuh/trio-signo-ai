@@ -79,8 +79,8 @@ def triplet_margin_train_epoch(model: SignRecognizerTransformer, dataloader: Dat
     for inputs, labels in dataloader:
         inputs, labels = inputs.to(model.device), labels.to(model.device)
         outputs: torch.Tensor = model(inputs, return_embeddings=True)
-        positive_samples: torch.Tensor = model(confused_sets.getPositiveSamples(labels), return_embeddings=True)
-        negative_samples: torch.Tensor = model(confused_sets.getNegativeSamples(labels), return_embeddings=True)
+        positive_samples: torch.Tensor = model(confused_sets.getPositiveSamples(labels).to(model.device), return_embeddings=True)
+        negative_samples: torch.Tensor = model(confused_sets.getNegativeSamples(labels).to(model.device), return_embeddings=True)
         # print(outputs.shape, positive_samples.shape, negative_samples.shape, "\n", outputs, "\n", positive_samples, "\n", negative_samples)
         loss: torch.Tensor = criterion(outputs, positive_samples, negative_samples)
         train_epoch_optimize(optimizer, loss)
@@ -148,7 +148,7 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
 
         ce_loss, train_acc = cross_entropy_train_epoch(model, train_data, cross_entropy_criterion, optimizer)
         total_loss = ce_loss
-        if confused_sets is not None:
+        if confuse_data is not None:
             tm_loss = triplet_margin_train_epoch(model, confuse_data, triplet_margin_criterion, optimizer, confused_sets)
             # total_loss = torch.cat((ce_loss, tm_loss))
             total_loss += tm_loss

@@ -24,7 +24,7 @@ def init_train_set(args: Args) -> tuple[DataLoader, DataLoader | None, DataLoade
     print("Loading trainset...", end="", flush=True)
     train_data: DataSamples = DataSamples.fromCborFile(args.trainset_path)
     print("[DONE]")
-    print("Labels:", train_data.info.labels) 
+    print("Labels:", train_data.info.labels)
 
     print("Preparing confused labels...", end="", flush=True)
     confused_sets: ConfusedSets = ConfusedSets(confusing_pair=args.confusing_label, data_samples=train_data)
@@ -32,15 +32,16 @@ def init_train_set(args: Args) -> tuple[DataLoader, DataLoader | None, DataLoade
 
     print("Converting trainset to tensor...", end="", flush=True)
     tensors: TrainTensors = train_data.toTensors(args.validation_set_ratio, confused_label=list(confused_sets.confusing_pair.keys()))
+    # print(tensors)
     train_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.train[0], tensors.train[1]), batch_size=args.batch_size, shuffle=True)
     validation_dataloader: DataLoader = None
-    if tensors.validation:
+    if tensors.validation[0] is not None:
         validation_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.validation[0], tensors.validation[1]), batch_size=args.batch_size, shuffle=True)
     confuse_dataloader: DataLoader = None
-    if tensors.confusion:
+    if tensors.confusion[0] is not None:
         confuse_dataloader: DataLoader = DataLoader(SignRecognizerTransformerDataset(tensors.confusion[0], tensors.confusion[1]), batch_size=args.batch_size, shuffle=True)
     print("[DONE]")
-
+    # print(train_dataloader, validation_dataloader, confuse_dataloader)
 
     model_info: ModelInfo = ModelInfo.build(
             info=train_data.info,
