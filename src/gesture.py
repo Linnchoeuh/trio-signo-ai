@@ -554,7 +554,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
 
         return self
 
-    def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
+    def moveToOneSide(self, right_side: bool = False) -> "DataGestures":
         dest_side = "r_" if right_side else "l_"
         src_side = "l_" if right_side else "r_"
 
@@ -564,5 +564,9 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 opposite_field_name = field_name.replace(src_side, dest_side, 1)
                 dest_side_value: list[float] | None = getattr(self, field_name.replace(src_side, dest_side))
                 if dest_side_value is None:
+                    if src_side_val is not None:
+                        src_side_val[0] *= -1
+                        # src_side_val[1] *= -1
+                        src_side_val[2] *= -1
                     setattr(self, opposite_field_name, src_side_val)
                     setattr(self, field_name, None)
