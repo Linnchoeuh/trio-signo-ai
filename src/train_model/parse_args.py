@@ -191,6 +191,8 @@ def parse_args() -> Args:
     args.epoch = term_args.epoch
 
     print("Confusing label registered:")
+    if term_args.confusing_label is None:
+        term_args.confusing_label = []
     i: int = 0
     while i < len(term_args.confusing_label):
         c_label = term_args.confusing_label[i]
