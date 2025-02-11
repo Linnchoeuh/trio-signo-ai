@@ -105,9 +105,9 @@
         "z": 26
     },
     "one_side": true,
-    "name": "alphabet",
-    "d_model": 64,
+    "name": "alphabet2",
+    "d_model": 32,
     "num_heads": 8,
-    "num_layers": 3,
-    "ff_dim": 256
+    "num_layers": 2,
+    "ff_dim": 128
 }
