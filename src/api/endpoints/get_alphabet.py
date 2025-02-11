@@ -1,4 +1,5 @@
 import os
+import ipaddress
 
 import cv2
 from flask import request, jsonify
@@ -8,7 +9,7 @@ import io
 from PIL import Image, ImageOps
 from run_model import track_hand, recognize_sign
 
-from src.model_class.sign_recognizer_v1 import *
+from src.model_class.transformer_sign_recognizer import *
 
 import mediapipe as mp
 from mediapipe.tasks.python.vision.hand_landmarker import *
@@ -53,10 +54,15 @@ def display_hand_tracked_image(image, recognition_result: HandLandmarkerResult):
           mp_drawing_styles.get_default_hand_connections_style())
 
     cv2.imshow('gesture_recognition', current_frame)
-    cv2.waitKeyEx(1000)
-    cv2.destroyAllWindows()
+    cv2.waitKey(1)
+    # cv2.destroyAllWindows()
 
-def get_alpahabet(hand_tracker: HandLandmarker, alphabet_recognizer: SignRecognizerV1):
+def get_alphabet(hand_tracker: HandLandmarker, alphabet_recognizer: SignRecognizerTransformer, sample_history: dict[int, DataSample2]):
+    try:
+        ip: int = ipaddress.ip_address(request.remote_addr)
+    except:
+        return jsonify({'error': 'Invalid IP address'}), 400
+
     if 'file' not in request.files:
         return jsonify({'error': 'No file part in the request'}), 400
 
@@ -90,9 +96,16 @@ def get_alpahabet(hand_tracker: HandLandmarker, alphabet_recognizer: SignRecogni
         if len(recognition_result.hand_world_landmarks) < 1:
             return jsonify({'message': None}), 200
 
-        sample: DataSample2 = DataSample2("", [])
-        sample.insert_gesture_from_landmarks(0, recognition_result)
+        if sample_history.get(ip) is None:
+            sample_history[ip] = DataSample2("", [])
 
-        sign, _ = recognize_sign(sample, alphabet_recognizer)
+        sample_history[ip].insert_gesture_from_landmarks(0, recognition_result)
+        while len(sample_history[ip].gestures) > alphabet_recognizer.info.memory_frame:
+            sample_history[ip].gestures.pop(-1)
+        if alphabet_recognizer.info.one_side:
+            sample_history[ip].move_to_one_side()
 
+        sign, _ = recognize_sign(sample_history[ip], alphabet_recognizer, alphabet_recognizer.info.active_gestures.getActiveFields())
+
+        # print(f"Sign: {alphabet_recognizer.info.labels[sign]}")
         return jsonify({'message': f"{alphabet_recognizer.info.labels[sign]}"}), 200
