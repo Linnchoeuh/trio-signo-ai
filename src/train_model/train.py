@@ -9,6 +9,7 @@ from src.train_model.AccuracyCalculator import AccuracyCalculator
 from src.train_model.CustomDataset import CustomDataset
 from src.model_class.transformer_sign_recognizer import *
 from src.train_model.ConfusedSets import *
+from src.train_model.TrainStat import *
 
 
 def train_epoch_run_model(model: SignRecognizerTransformer, criterion: nn.Module, inputs: torch.Tensor, labels: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -122,9 +123,9 @@ def log_validation_info(val_acc: AccuracyCalculator, loss: torch.Tensor, val_los
     print(f"\tLoss Diff: {loss_diff:.4f}, Mean Loss: {mean_loss:.4f}")
 
 def train_model(model: SignRecognizerTransformer, device: torch.device, confused_sets: ConfusedSets,
-                train_data: DataLoader, validation_data: DataLoader = None, confuse_data: DataLoader = None,
+                train_data: DataLoader, train_stats: TrainStat, validation_data: DataLoader = None, confuse_data: DataLoader = None,
                 num_epochs: int = 20, weights_balance: torch.Tensor = None,
-                learning_rate: float = 0.001, validation_interval: int = 2, silent: bool = False) -> float:
+                learning_rate: float = 0.001, validation_interval: int = 2, silent: bool = False) -> TrainStat:
 
     model.to(device)
 
@@ -138,7 +139,11 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
     optimizer: optim.Optimizer = optim.Adam(model.parameters(), lr=learning_rate)
     scheduler: optim.lr_scheduler.ReduceLROnPlateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=5)
 
-    start_time = time.time()
+    total_time: float = time.time()
+    train_epoch_durations: list[float] = []
+    validation_epoch_durations: list[float] = []
+
+
     remain_time: str = "Estimating..."
     final_loss: float = 0
     validation_was_runned: bool = False
@@ -146,6 +151,7 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
         validation_was_runned = False
         total_loss: torch.Tensor = None
 
+        start_time: float = time.time()
         ce_loss, train_acc = cross_entropy_train_epoch(model, train_data, cross_entropy_criterion, optimizer)
         total_loss = ce_loss
         if confuse_data is not None:
@@ -153,6 +159,7 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
             # total_loss = torch.cat((ce_loss, tm_loss))
             total_loss += tm_loss
         final_loss: torch.types.Number = total_loss.item()
+        train_epoch_durations.append(time.time() - start_time)
 
         if not silent:
             train_avg_acc, individual_accuraccy = train_acc.get_accuracy()
@@ -167,9 +174,11 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
 
 
         if validation_data is not None and validation_interval > 1 and epoch % validation_interval == validation_interval - 1:
+            start_time = time.time()
             validation_was_runned = True
             val_loss, val_acc = validation_epoch(model, validation_data, cross_entropy_criterion)
             final_loss = val_loss.item()
+            validation_epoch_durations.append(time.time() - start_time)
 
             if not silent:
                 log_validation_info(val_acc, total_loss, val_loss)
@@ -177,14 +186,53 @@ def train_model(model: SignRecognizerTransformer, device: torch.device, confused
 
 
         scheduler.step(final_loss)
-        remain_time = time.strftime('%H:%M:%S', time.gmtime(((time.time() - start_time) / (epoch+1)) * (num_epochs - epoch - 1)))
+
+        train_stats.addEpoch(TrainStatEpoch(
+            learning_rate=optimizer.param_groups[0]['lr'],
+            train=TrainStatEpochResult(
+                loss=total_loss.item(),
+                accuracy=train_acc.get_correct_over_total(),
+                duration=train_epoch_durations[-1]
+            ),
+            validation=None if not validation_was_runned else TrainStatEpochResult(
+                loss=val_loss.item(),
+                accuracy=val_acc.get_correct_over_total(),
+                duration=validation_epoch_durations[-1]
+            ),
+            confusing_pairs=confused_sets.confusing_pair,
+            batch_size=train_data.batch_size,
+            weights_balance=None if weights_balance is None else weights_balance.tolist()
+        ))
+
+
+        # Estimating remaining time
+        remain_epoch: int = num_epochs - (epoch + 1)
+        estimated_train_epoch_total_duration: int = 0
+        if len(train_epoch_durations) > 0:
+            estimated_train_epoch_total_duration = (sum(train_epoch_durations) / len(train_epoch_durations)) * remain_epoch
+        estimated_validation_epoch_total_duration: int = 0
+        if len(validation_epoch_durations) > 0:
+            estimated_validation_epoch_total_duration = (sum(validation_epoch_durations) / len(validation_epoch_durations)) * (remain_epoch / validation_interval)
+        estimated_total_duration = estimated_train_epoch_total_duration + estimated_validation_epoch_total_duration
+        remain_time = time.strftime('%H:%M:%S', time.gmtime(estimated_total_duration))
 
     if validation_data is not None and not validation_was_runned:
+        start_time = time.time()
         val_loss, val_acc = validation_epoch(model, validation_data, cross_entropy_criterion)
         final_loss = val_loss.item()
+        validation_epoch_durations.append(time.time() - start_time)
 
         if not silent:
             log_validation_info(val_acc, total_loss, val_loss)
 
+    train_stats.final_accuracy = TrainStatEpochResult(
+        loss=final_loss,
+        accuracy=train_acc.get_correct_over_total(),
+        duration=validation_epoch_durations[-1]
+    )
 
-    return final_loss
+    total_time = time.time() - total_time
+    print(f"Total time: {time.strftime('%H:%M:%S', time.gmtime(total_time))}")
+    train_stats.total_duration = total_time
+
+    return train_stats

@@ -186,7 +186,7 @@ class DataSamples:
         validation_out: list[int] = []
 
         for i in range(len(samples_out_of_dict)):
-            split_index = int(len(samples_out_of_dict[i]) * split_ratio)
+            split_index = int(len(samples_out_of_dict[i]) * (1 - split_ratio))
             if i in confused_label:
                 confusion_in += samples_out_of_dict[i][:split_index]
                 confusion_out += [i] * split_index
