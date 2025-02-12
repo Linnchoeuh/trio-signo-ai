@@ -52,6 +52,7 @@ if copy_previous_model:
     os.rename(path + pth_file, f"{path}/{model.info.name}_{nb_prev_model}.pth")
 
     model.saveModel(args.model_path)
+    nb_prev_model =+ 1
 else:
     args.model_path = model.saveModel()
 
