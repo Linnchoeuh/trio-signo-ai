@@ -15,10 +15,7 @@
 
 import argparse
 import sys
-import time
-import math
-import copy
-import random
+import os
 
 import cv2
 import mediapipe as mp
@@ -30,8 +27,8 @@ from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.category import *
 from mediapipe.tasks.python.components.containers.landmark import *
 
-
-from src.alphabet_recognizer import *
+from src.datasample import *
+from src.model_class.alphabet_recognizer_v1 import *
 
 
 mp_hands = mp.solutions.hands
@@ -40,8 +37,8 @@ mp_drawing_styles = mp.solutions.drawing_styles
 
 
 # Global variables to calculate FPS
-COUNTER, FPS = 0, 0
-START_TIME = time.time()
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+TARGET_FOLDER = "./datasets/source_images/cam"
 
 
 def run(model: str, num_hands: int,
@@ -63,29 +60,18 @@ def run(model: str, num_hands: int,
       width: The width of the frame captured from the camera.
       height: The height of the frame captured from the camera.
   """
+  count = 0
+  alphabet_model = LSFAlphabetRecognizerV1(27)
+  # alphabet_model.load_state_dict(torch.load('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth'))
+  alphabet_model.loadModel('./models/sign_recognition/triosigno/alphabet_recognizer_v2/model_v2.pth')
 
   # Start capturing video input from the camera
   cap = cv2.VideoCapture(camera_id)
   cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
   cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
-  cap.set(cv2.CAP_PROP_FPS, 10)
-
-  alphabet_model = LSFAlphabetRecognizer()
-  alphabet_model.load_state_dict(torch.load('model.pth'))
+  cap.set(cv2.CAP_PROP_FPS, 60)
 
 
-  # Visualization parameters
-  row_size = 50  # pixels
-  left_margin = 24  # pixels
-  text_color = (0, 0, 0)  # black
-  font_size = 1
-  font_thickness = 1
-  fps_avg_frame_count = 10
-
-  # Label box parameters
-  label_text_color = (255, 255, 255)  # white
-  label_font_size = 1
-  label_thickness = 2
 
   recognition_frame = None
   recognition_result: HandLandmarkerResult = None
@@ -138,6 +124,7 @@ def run(model: str, num_hands: int,
       )
 
     image = cv2.flip(image, 1)
+    img_cpy = image.copy()
 
     # Convert the image from BGR to RGB as required by the TFLite model.
     rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
@@ -149,8 +136,6 @@ def run(model: str, num_hands: int,
 
 
     # Show the FPS
-    fps_text = 'FPS = {:.1f}'.format(FPS)
-    text_location = (left_margin, row_size)
     current_frame = image
     # cv2.putText(image, fps_text, text_location, cv2.FONT_HERSHEY_DUPLEX,
     #             font_size, text_color, font_thickness, cv2.LINE_AA)
@@ -208,19 +193,47 @@ def run(model: str, num_hands: int,
           mp_drawing_styles.get_default_hand_connections_style())
 
       for landmarks in recognition_result.hand_world_landmarks:
-        # print(len(LandmarksTo1DArray(landmarks)), LandmarksTo1DArray(landmarks))
-        print(LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks))])
+        try:
+          letter = LABEL_MAP.id[alphabet_model.use(LandmarksTo1DArray(landmarks)) + 1]
+          if letter == '0':
+            letter = 'None'
+        except:
+          letter = 'None'
+        print(letter)
+
+
+      # Check if any key is pressed
+
 
 
       recognition_frame = current_frame
-      recognition_result = None
+      # recognition_result = None
 
     if recognition_frame is not None:
         cv2.imshow('gesture_recognition', recognition_frame)
 
     # Stop the program if the ESC key is pressed.
-    if cv2.waitKey(1) == 27:
-        break
+
+    key = cv2.waitKey(1)
+    if key == 27:
+      break
+    elif key != -1 and chr(key) in "abcdefghijklmnopqrstuvwxyz0":
+      # dir = "."
+      # dir = f"{SCRIPT_DIR}/{TARGET_FOLDER}"
+      # files = os.listdir(dir)
+      # file = f"{chr(key).upper()}.png"
+      # i = 0
+      # while file in files:
+      #   i += 1
+      #   file = f"{chr(key).upper()}{i}.png"
+      # path = f"{dir}/{file}"
+      # print(f"Key pressed: {key} (ASCII: {chr(key)}) saving to {path}")
+      # cv2.imwrite(path, img_cpy)
+      with open(f"{chr(key).lower()}_{count}.json", 'w') as f:
+        sample = DataSample.from_handlandmarker(recognition_result, label=chr(key).lower(), label_id=0)
+        f.write(json.dumps(sample.to_json(), indent=4, ensure_ascii=False))
+      count += 1
+
 
   recognizer.close()
   cap.release()
@@ -234,7 +247,7 @@ def main():
       '--model',
       help='Name of gesture recognition model.',
       required=False,
-      default='hand_landmarker.task')
+      default='models/hand_tracking/google/hand_landmarker.task')
   parser.add_argument(
       '--numHands',
       help='Max number of hands that can be detected by the recognizer.',
