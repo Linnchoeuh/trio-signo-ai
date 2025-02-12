@@ -1,5 +1,6 @@
 import math
 import random
+import torch
 from dataclasses import dataclass, fields
 from typing import Generic, TypeVar
 
@@ -18,7 +19,10 @@ def is_valid_field(field_name: str, valid_fields: list[str] | None) -> bool:
 T = TypeVar('T')
 @dataclass
 class Gestures(Generic[T]):
-    # NEVER CHANGE THE POINTS ORDER OR IT WILL BACKWARD COMPATIBILITY
+    # NEVER CHANGE THE POINTS ORDER OR IT WILL BREAK BACKWARD COMPATIBILITY
+
+    # Always start your variable name with the hand side (l_ or r_)
+    # Method move_one_side() use this prefix to work
 
     # Left hand data
     l_hand_position: T = None
@@ -69,7 +73,7 @@ class Gestures(Generic[T]):
     r_pinky_tip: T = None
 
 FIELDS: list[str] = [field.name for field in fields(Gestures())]
-
+FIELD_DIMENSION: int = 3
 
 @dataclass
 class ActiveGestures(Gestures[bool | None]):
@@ -252,6 +256,14 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         tmp.setHandsFromHandLandmarkerResult(landmark_result, valid_fields)
         return tmp
 
+    @classmethod
+    def from1DArray(self, array: list[float], valid_fields: list[str] = None) -> "DataGestures":
+        tmp = DataGestures()
+        valid_fields = get_fields(valid_fields)
+        for i, field_name in enumerate(valid_fields):
+            setattr(tmp, field_name, array[i * FIELD_DIMENSION: (i + 1) * FIELD_DIMENSION])
+        return tmp
+
     def setHandsFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
         """Convert the HandLandmarkerResult object into a DataGestures object.
 
@@ -424,16 +436,11 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         return self
 
     def get1DArray(self, valid_fields: list[str] = None) -> list[float]:
-        data: list[float] = []
-        valid_fields = get_fields(valid_fields)
+        valid_fields = get_fields(valid_fields)  # Récupérer les bons champs
+        return [coord for field_name in valid_fields for coord in (getattr(self, field_name, [0, 0, 0]) or [0, 0, 0])]
 
-        for field_name in valid_fields:
-            attr: list[float, float, float] | None = getattr(self, field_name)
-            if attr is None:
-                attr = [0, 0, 0]
-                # raise ValueError(f"Field {field_name} is None")
-            data += attr
-        return data
+    def toTensor(self, valid_fields: list[str] = FIELDS, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+        return torch.as_tensor(self.get1DArray(valid_fields), dtype=torch.float32).to(device)
 
     def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
         """Will randomize the gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.
@@ -471,7 +478,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         # Mirroring the hand make the hand become the opposite hand
         # This if statement will swap the left hand and right hand data
         if (x + y + z) % 2 == 1:
-            self.swap_hands()
+            self.swapHands()
         return self
 
     def rotate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -509,7 +516,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
             setattr(self, field_name, field_value)
         return self
 
-    def swap_hands(self) -> "DataGestures":
+    def swapHands(self) -> "DataGestures":
         """Should not be used.<br>
         This function is used to swap the left hand and right hand data,
         in case the hands are mirrored or the data is not in the right order.
@@ -546,3 +553,16 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
 
         return self
+
+    def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
+        dest_side = "r_" if right_side else "l_"
+        src_side = "l_" if right_side else "r_"
+
+        for field_name in FIELDS:
+            if field_name.startswith(src_side):
+                src_side_val: list[float] | None = getattr(self, field_name)
+                opposite_field_name = field_name.replace(src_side, dest_side, 1)
+                dest_side_value: list[float] | None = getattr(self, field_name.replace(src_side, dest_side))
+                if dest_side_value is None:
+                    setattr(self, opposite_field_name, src_side_val)
+                    setattr(self, field_name, None)
