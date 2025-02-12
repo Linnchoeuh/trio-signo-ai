@@ -75,6 +75,7 @@ class TrainStat:
     def toJson(self) -> dict:
         cpy = copy.copy(self)
         cpy.epochs = [epoch.toJson() for epoch in self.epochs]
+        cpy.final_accuracy = self.final_accuracy.__dict__ if self.final_accuracy is not None else None
         return cpy.__dict__
 
     def save(self, path: str = None):
