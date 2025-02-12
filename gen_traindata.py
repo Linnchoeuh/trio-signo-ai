@@ -6,13 +6,12 @@ import copy
 import random
 from collections import deque
 
-from dataclasses import dataclass
-from src.model_class.sign_recognizer_v1 import *
 from src.gen_traindata.gen_static_data import *
 from src.gen_traindata.gen_dynamic_data import *
 
-from src.datasample import *
 from src.gesture import *
+from src.datasample import *
+from src.datasamples import *
 
 DATASETS_DIR = "datasets"
 
@@ -26,11 +25,13 @@ def print_help():
 \t{sys.argv[0]} [OPTIONS] [DATASET1 DATASET2 ...]
 OPTIONS:
 \t-h: Display this help message
-\t-s: Number of subset to generate for each sample
-\t-n: Name of the dataset
-\t-f: Number of frame in the past in the training set
-\t-x: NULL dataset: Define the null labeled output for the model further training data.
-\t-a: Active point: Let you define which point to activate in the training dataset
+\t-s: (-s [integer]) Number of subset to generate for each sample
+\t-n: (-n [string]) Name of the dataset
+\t-f: (-f [integer]) Number of frame in the past in the training set
+\t-x: (-s [string (label)]) NULL dataset: Define the null labeled output for the model further training data.
+\t-b: (-b (enables)) Balance the number of element between label in the training dataset
+\t-o: (-o (enables)) One sides all the sign making left and right hand the same
+\t-a: (-a [string]) Active point: Let you define which point to activate in the training dataset
 \t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
 """)
@@ -46,13 +47,14 @@ def print_progression(dataset_labels: list[str], label_id: int,
         one_cycle_time = elapsed_time / completed_cycle
     remaining_time = one_cycle_time * (total_cycle - completed_cycle)
     remaining_time_str = time.strftime("%H:%M:%S", time.gmtime(remaining_time))
+    dataset_labels_len = len(dataset_labels)
 
     print(f"\r\033[KCreating dataset: "
-        f"[Label ({dataset_labels[label_id]}): {label_id}/{len(dataset_labels)}] "
-        f"[Datasample: {treated_sample}/{label_total_samples}] "
-        f"[Subset Generation: {subset}/{total_subset}] "
+        f"[Label ({dataset_labels[label_id]}): {str(label_id).zfill(len(str(dataset_labels_len)))}/{dataset_labels_len}] "
+        f"[Datasample: {str(treated_sample).zfill(len(str(label_total_samples)))}/{label_total_samples}] "
+        f"[Subset Generation: {str(subset).zfill(len(str(total_subset)))}/{total_subset}] "
         f"[Sample generated: {created_sample}] "
-        f"Remain time: {remaining_time_str} {completed_cycle}/{total_cycle}", end="")
+        f"Remain time: {remaining_time_str} {str(completed_cycle).zfill(len(str(total_cycle)))}/{total_cycle}", end="")
 
 
 def create_subset(sample: DataSample2, nb_frame: int, data_samples: dict[str, list[DataSample2]], null_set: str = None, active_points: ActiveGestures = None) -> list[DataSample2]:
@@ -90,7 +92,7 @@ def create_subset(sample: DataSample2, nb_frame: int, data_samples: dict[str, li
 
     return list(sub_sample)
 
-def summary_checker(dataset_name: str, null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, active_gesture: ActiveGestures = None):
+def summary_checker(dataset_name: str, null_label: str, labels: list[str], total_subsets: int, nb_frame: int, file_name: str, one_side: bool, active_gesture: ActiveGestures = None):
     print(f"Dataset name: {dataset_name}")
     print(f"Null label: {null_label}")
     print(f"Labels: {labels}")
@@ -98,6 +100,7 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
     print(f"Number of frame: {nb_frame}")
     print(f"Active gesture: {active_gesture}")
     print(f"Output file: {file_name}")
+    print(f"One side: {one_side}")
     answer = None
     while answer != "y":
         answer = input("Do you want to continue? (y/n): ")
@@ -130,6 +133,8 @@ def main():
     nb_frame = 15
     null_set: str = None
     active_gesture: ActiveGestures = ALL_GESTURES
+    balance: bool = False
+    one_side: bool = False
     while i < len(sys.argv):
         args = sys.argv[i]
         # print(args)
@@ -158,6 +163,13 @@ def main():
                         print("Invalid active gesture preset")
                         exit(1)
                     active_gesture = tmp[0]
+                case "b":
+                    balance = True
+                case "o":
+                    one_side = True
+                case _:
+                    print(f"Invalid argument: {args}")
+                    exit(1)
         else:
             dataset_labels.append(args)
         i += 1
@@ -180,9 +192,9 @@ def main():
         formatted_date = time.strftime("%d-%m-%Y_%H-%M-%S", local_time)
         dataset_name = f"trainset_{formatted_date}"
 
-    summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, active_gesture)
+    summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, one_side, active_gesture)
 
-    train_data: TrainData2 = TrainData2(TrainDataInfo(dataset_labels, nb_frame, active_gesture))
+    train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, nb_frame, active_gesture, one_side=one_side))
 
     print("Loading samples into memory...", end=" ")
     data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame)
@@ -204,14 +216,14 @@ def main():
 
         for sample in samples:
 
-            train_data.add_data_sample(sample)
+            train_data.addDataSample(sample)
 
             subset = 0
             while subset < total_subsets:
                 print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
                                   subset, total_subsets, train_data.sample_count,
                                   start_time, completed_cycle, total_cycle)
-                train_data.add_data_samples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
+                train_data.addDataSamples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
                 completed_cycle += 1
                 subset += 1
 
@@ -228,12 +240,40 @@ def main():
                       subset, total_subsets, train_data.sample_count,
                       start_time, completed_cycle, total_cycle)
 
+    print()
+    if balance:
+        print("Base generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
+        print("Balancing dataset...")
+        biggest_label_count: int = max([len(samples) for samples in train_data.samples])
+        start_time2 = time.time()
+
+
+        label_id: int = 0
+        completed_cycle: int = 0
+        total_cycle = (biggest_label_count * len(train_data.info.labels)) - train_data.getNumberOfSamples()
+        while label_id < len(train_data.samples):
+            i: int = 0
+            current_data_samples = data_samples[train_data.info.labels[label_id]]
+            data_sample_len = len(current_data_samples)
+            # print(len(train_data.samples[label_id]), biggest_label_count)
+            while len(train_data.samples[label_id]) < biggest_label_count:
+                generated_subset = create_subset(current_data_samples[i % data_sample_len], nb_frame, data_samples, None, active_gesture)
+                completed_cycle += len(generated_subset)
+                train_data.addDataSamples(generated_subset)
+                i += 1
+                print_progression(dataset_labels, label_id, i % data_sample_len, data_sample_len,
+                      len(train_data.samples[label_id]), biggest_label_count, train_data.sample_count,
+                      start_time2, completed_cycle, total_cycle)
+            label_id += 1
+
+        print("Balance generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time2)))
+
     train_data.getNumberOfSamples()
     print()
     print("Generation duration: ", time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time)))
     print("Total unique sample created: ", train_data.getNumberOfSamples())
     print("Saving dataset...")
-    train_data.to_cbor_file(f"./{dataset_name}.cbor")
+    train_data.toCborFile(f"./{dataset_name}.cbor")
     # train_data.to_json_file(f"./{dataset_name}.json", indent=4)
 
 # import cProfile
