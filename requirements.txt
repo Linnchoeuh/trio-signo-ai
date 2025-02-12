@@ -6,3 +6,9 @@ waitress
 torch
 pillow
 flask-cors
+cbor2
+optuna
+pygame
+
+# Video recorder
+moviepy
