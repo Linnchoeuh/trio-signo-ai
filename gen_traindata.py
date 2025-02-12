@@ -107,7 +107,7 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
         if answer == "n":
             exit(0)
 
-def load_datasamples(dataset_labels: list[str], memory_frame: int) -> dict[str, list[DataSample2]]:
+def load_datasamples(dataset_labels: list[str], memory_frame: int, null_label: str = None) -> dict[str, list[DataSample2]]:
     data_samples: dict[str, list[DataSample2]] = {}
     for label_name in dataset_labels:
         label_path: str = f"{DATASETS_DIR}/{label_name}"
@@ -122,7 +122,19 @@ def load_datasamples(dataset_labels: list[str], memory_frame: int) -> dict[str, 
                     sample.reframe(memory_frame)
                 data_samples[label_name].append(sample)
             except Exception as e:
-                print(f"\nError: {dataset_sample} is not a valid json file. {e}")
+                if null_label is not None and dataset_sample == "counter_example" and os.path.isdir(f"{label_path}/{dataset_sample}"):
+                    file_names = os.listdir(f"{label_path}/{dataset_sample}")
+                    for file_name in file_names:
+                        try:
+                            sample: DataSample2 = DataSample2.from_json_file(f"{label_path}/{dataset_sample}/{file_name}")
+                            sample.label = null_label
+                            if len(sample.gestures) > memory_frame:
+                                sample.reframe(memory_frame)
+                            data_samples[label_name].append(sample)
+                        except Exception as e:
+                            print(f"\nError: {dataset_sample}/{file_name} is not a valid json file. {e}")
+                else:
+                    print(f"\nError: {dataset_sample} is not a valid json file. {e}")
     return data_samples
 
 def main():
@@ -197,7 +209,7 @@ def main():
     train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, nb_frame, active_gesture, one_side=one_side))
 
     print("Loading samples into memory...", end=" ")
-    data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame)
+    data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame, null_label=null_set)
     print("[DONE]")
     total_cycle = sum([len(samples) for samples in data_samples.values()]) * total_subsets
     completed_cycle = 0

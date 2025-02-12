@@ -168,6 +168,11 @@ while run:
                 sample.to_json_file(samples[selected_sample][1])
             if event.key == pygame.K_m:
                 sample.swap_hands()
+            if event.key == pygame.K_DELETE:
+                try:
+                    os.remove(samples[selected_sample][1])
+                except:
+                    print("Error deleting file")
 
     if pygame.key.get_pressed()[pygame.K_LEFT]:
         rot_y -= 0.2 * BASE_FPS / FPS
