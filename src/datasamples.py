@@ -1,5 +1,6 @@
 import cbor2
 import random
+import io
 from dataclasses import dataclass, fields
 
 from src.gesture import *
@@ -349,11 +350,74 @@ class DataSamplesTensors:
     def fromCbor(cls, cbor_data):
         return cls.fromDict(cbor2.loads(cbor_data))
 
+
+    @classmethod
+    def fromCborDecoder(cls, fd: io.BufferedReader, decoder: cbor2.CBORDecoder):
+        info: DataSamplesInfo = None
+        samples: list[torch.Tensor] = []
+
+        valid_fields: list[str] = []
+
+        # Decode the CBOR map header
+        initial_byte = decoder.read(1)[0]  # Read the first byte
+        major_type = initial_byte >> 5     # Extract the major type (should be 5 for maps)
+        if major_type != 5:
+            raise ValueError("The first item is not a CBOR map!")
+
+        # Extract the size of the map
+        map_size = initial_byte & 0x1F
+        if map_size == 31:  # Indefinite-length maps not supported in this example
+            raise ValueError("Indefinite-length maps are not supported in this example!")
+
+        for _ in range(map_size):
+            key = decoder.decode()  # Decode the key
+            print(f"Processing field: {key}")
+
+            if key == "info":
+                data = decoder.decode()
+                info = DataSamplesInfo.fromDict(data)
+                valid_fields = info.active_gestures.getActiveFields()
+            elif key == "samples":
+                header = decoder.read(1)[0]  # Read the array header
+                major_type = header >> 5
+                additional_info = header & 0x1F
+
+                if major_type != 4:
+                    raise ValueError(f"Expected array for 'samples', got type {major_type}.")
+
+                # Decode the size of the array based on the additional information
+                if additional_info < 24:
+                    list_size = additional_info  # Directly encoded size
+                elif additional_info == 24:
+                    list_size = decoder.read(1)[0]  # Next byte contains the size
+                elif additional_info == 25:
+                    list_size = int.from_bytes(decoder.read(2), "big")  # 16-bit size
+                elif additional_info == 26:
+                    list_size = int.from_bytes(decoder.read(4), "big")  # 32-bit size
+                elif additional_info == 27:
+                    list_size = int.from_bytes(decoder.read(8), "big")  # 64-bit size
+                else:
+                    raise ValueError("Indefinite-length arrays are not supported.")
+
+                for i in range(list_size):
+                    sample_from_label = decoder.decode()
+                    tensor_samples: list[torch.Tensor] = []
+                    for sample in sample_from_label:
+                        tensor_samples.append(DataSample2.unflat("", sample, valid_fields).to_tensor(info.memory_frame, valid_fields))
+                    del sample_from_label
+                    samples.append(torch.stack(tensor_samples))
+                    del tensor_samples
+
+        cls = cls(info=info)
+        cls.samples = samples
+        cls.getNumberOfSamples()
+        return cls
+
     @classmethod
     def fromCborFile(cls, file_path: str):
         with open(file_path, 'rb') as f:
-            data = f.read()
-        return cls.fromCbor(data)
+            decoder: cbor2.CBORDecoder = cbor2.CBORDecoder(f)
+            return cls.fromCborDecoder(f, decoder)
 
     def getNumberOfSamples(self):
         self.sample_count = sum([len(label_samples) for label_samples in self.samples])
