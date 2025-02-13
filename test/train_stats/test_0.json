@@ -1,0 +1,55 @@
+{
+    "name": "test_0",
+    "trainset_name": ".\\lil_set.cbor",
+    "labels": [
+        "_null",
+        "a"
+    ],
+    "label_map": {
+        "_null": 0,
+        "a": 1
+    },
+    "sample_quantity": [
+        22542,
+        22544
+    ],
+    "validation_ratio": 0.2,
+    "epochs": [
+        {
+            "learning_rate": 0.001,
+            "train": {
+                "loss": 0.33937105536460876,
+                "accuracy": [
+                    [
+                        14926,
+                        18033
+                    ],
+                    [
+                        15986,
+                        18035
+                    ]
+                ],
+                "duration": 6.2656543254852295
+            },
+            "validation": null,
+            "confusing_pairs": {},
+            "batch_size": 32,
+            "weights_balance": null
+        }
+    ],
+    "final_accuracy": {
+        "loss": 0.11017978191375732,
+        "accuracy": [
+            [
+                14926,
+                18033
+            ],
+            [
+                15986,
+                18035
+            ]
+        ],
+        "duration": 0.5035696029663086
+    },
+    "total_duration": 6.77022385597229
+}

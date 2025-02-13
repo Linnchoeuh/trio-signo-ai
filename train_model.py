@@ -55,6 +55,14 @@ if copy_previous_model:
     nb_prev_model =+ 1
 else:
     args.model_path = model.saveModel()
+    try:
+        shutil.rmtree(args.model_path + "/train_stats")
+    except Exception as e:
+        print(e)
+    try:
+        shutil.rmtree(args.model_path + "/previous_models")
+    except Exception as e:
+        print(e)
 
 train_stats.rename(model.info.name, nb_prev_model)
 os.makedirs(args.model_path + "/train_stats/", exist_ok=True)
