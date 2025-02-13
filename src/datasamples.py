@@ -303,3 +303,139 @@ class DataSamples:
         weigths = [weight / total for weight in weigths]
         # print(weigths)
         return torch.tensor(weigths, dtype=torch.float32, device=device)
+
+class DataSamplesTensors:
+    info: DataSamplesInfo
+    samples: list[torch.Tensor]
+    sample_count: int
+    valid_fields: list[str] = []
+
+    def __init__(self, info: DataSamplesInfo):
+        self.info = info
+        self.sample_count = 0
+
+        self.valid_fields = info.active_gestures.getActiveFields()
+        self.samples = []
+        while len(self.samples) < len(info.labels):
+            self.samples.append(None)
+
+
+    @classmethod
+    def fromDict(cls, json_data):
+        cls = cls(info=DataSamplesInfo.fromDict(json_data['info']))
+        dict_sample: list[list[list[float]]] = json_data['samples']
+        # print(len(cls.samples))
+
+        for sample_label_id in range(len(dict_sample)):
+            current_label: str = cls.info.labels[sample_label_id]
+
+            tensor_samples: list[torch.Tensor] = []
+            for sample in dict_sample[sample_label_id]:
+                tensor_samples.append(DataSample2.unflat(current_label, sample, cls.valid_fields).to_tensor(cls.info.memory_frame, cls.valid_fields))
+            del dict_sample[sample_label_id]
+            dict_sample.insert(0, None)
+            cls.samples[sample_label_id] = torch.stack(tensor_samples)
+            del tensor_samples
+        cls.getNumberOfSamples()
+        return cls
+
+    @classmethod
+    def fromJsonFile(cls, file_path: str):
+        with open(file_path, 'r', encoding="utf-8") as f:
+            data = json.load(f)
+        return cls.fromDict(data)
+
+    @classmethod
+    def fromCbor(cls, cbor_data):
+        return cls.fromDict(cbor2.loads(cbor_data))
+
+    @classmethod
+    def fromCborFile(cls, file_path: str):
+        with open(file_path, 'rb') as f:
+            data = f.read()
+        return cls.fromCbor(data)
+
+    def getNumberOfSamples(self):
+        self.sample_count = sum([len(label_samples) for label_samples in self.samples])
+        return self.sample_count
+
+    # def toDict(self) -> dict:
+    #     # self.sample_count = self.getNumberOfSamples()
+
+    #     samples: list[list[list[float]]] = []
+    #     for labeled_samples in self.samples:
+    #         tmp: list[list[float]] = []
+    #         for sample in labeled_samples.values():
+    #             # samples[-1].append(sample.flat(self.valid_fields))
+    #             tmp.append(sample)
+    #         samples.append(tmp)
+
+    #     return {
+    #         "info": self.info.toDict(),
+    #         "samples": samples
+    #     }
+
+    # def toJsonFile(self, file_path: str, indent: int | str | None = 0):
+    #     with open(file_path, 'w', encoding="utf-8") as f:
+    #         json.dump(self.toDict(), f, indent=indent)
+
+    # def toCbor(self) -> bytes:
+    #     return cbor2.dumps(self.toDict())
+
+    # def toCborFile(self, file_path: str):
+    #     with open(file_path, 'wb') as f:
+    #         f.write(self.toCbor())
+
+    def toTensors(self, split_ratio: float = 0, confused_label: list[int] = [], include_confused_label_in_train: bool = True) -> TrainTensors:
+
+        train_in: list[torch.Tensor] = []
+        train_out: list[int] = []
+        confusion_in: list[torch.Tensor] = []
+        confusion_out: list[int] = []
+        validation_in: list[torch.Tensor] = []
+        validation_out: list[int] = []
+
+        for i in range(len(self.samples)):
+            split_index = int(self.samples[i].shape[0] * (1 - split_ratio))
+            if i in confused_label:
+                confusion_in += self.samples[i][:split_index]
+                confusion_out += [i] * split_index
+            if include_confused_label_in_train or i not in confused_label:
+                train_in += self.samples[i][:split_index]
+                train_out += [i] * split_index
+            validation_in += self.samples[i][split_index:]
+            validation_out += [i] * (self.samples[i].shape[0] - split_index)
+
+        def to_stack(samples: list[torch.Tensor]) -> torch.Tensor | None:
+            if len(samples) == 0:
+                return None
+            return torch.stack(samples)
+
+        return TrainTensors(
+            train=(to_stack(train_in), torch.tensor(train_out)),
+            confusion=(to_stack(confusion_in), torch.tensor(confusion_out)),
+            validation=(to_stack(validation_in), torch.tensor(validation_out))
+        )
+
+    def getTensorsFromLabelId(self, label_int: int, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
+        return list(self.samples[label_int].values())
+
+    def getTensorsFromLabel(self, label: str, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
+        return self.getTensorsFromLabelId(self.info.label_map[label], device)
+
+    def getClassWeights(self, balance_weight: bool = True, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+        weigths: list[float] = []
+        if balance_weight:
+            smallest_class = len(self.samples[0])
+            for sample in self.samples:
+                if len(sample) < smallest_class:
+                    smallest_class = len(sample)
+            for sample in self.samples:
+                weigths.append(smallest_class / len(sample))
+        else:
+            for sample in self.samples:
+                weigths.append(1)
+        total = sum(weigths)
+        weigths = [weight / total for weight in weigths]
+        # print(weigths)
+        return torch.tensor(weigths, dtype=torch.float32, device=device)

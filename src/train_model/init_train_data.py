@@ -24,9 +24,10 @@ def init_train_set(args: Args, current_time: str = time.strftime('%d-%m-%Y_%H-%M
     """
 
     print("Loading trainset...", end="", flush=True)
-    train_data: DataSamples = DataSamples.fromCborFile(args.trainset_path)
+    train_data: DataSamplesTensors = DataSamplesTensors.fromCborFile(args.trainset_path)
     print("[DONE]")
     print("Labels:", train_data.info.labels)
+    time.sleep(5)
 
     sample_quantity: list[int] = []
     for samples in train_data.samples:
