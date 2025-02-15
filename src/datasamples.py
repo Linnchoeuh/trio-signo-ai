@@ -471,7 +471,7 @@ class DataSamplesTensors:
         )
 
     def getTensorsFromLabelId(self, label_int: int, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
-        return list(self.samples[label_int].values())
+        return list(torch.unbind(self.samples[label_int], dim=0))
 
     def getTensorsFromLabel(self, label: str, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
         return self.getTensorsFromLabelId(self.info.label_map[label], device)
