@@ -142,27 +142,6 @@ class DataSamples:
         with open(file_path, 'wb') as f:
             f.write(self.toCbor())
 
-    # def toTensors(self, device: torch.device = torch.device("cpu"), split_ratio: float = 0) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-    #     all_samples: dict[int, DataSample2] = {}
-
-    #     for label_samples in self.samples:
-    #         all_samples.update(label_samples)
-
-    #     keys = random.sample(list(all_samples.keys()), len(all_samples))
-
-    #     input_data: list[torch.Tensor] = []
-    #     output_data: list[int] = []
-
-    #     while len(keys) > 0:
-    #         key = keys.pop()
-    #         output_data.append(self.info.label_map[all_samples[key].label])
-    #         input_data.append(all_samples[key].to_tensor(self.info.memory_frame, self.valid_fields, device))
-
-    #     if split_ratio > 0:
-    #         split_index = int(len(input_data) * split_ratio)
-    #         return torch.stack(input_data[:split_index]), torch.tensor(output_data[:split_index]), torch.stack(input_data[split_index:]), torch.tensor(output_data[split_index:])
-    #     return torch.stack(input_data), torch.tensor(output_data), None, None
-
     def toTensors(self, split_ratio: float = 0, confused_label: list[int] = [], include_confused_label_in_train: bool = True) -> TrainTensors:
         samples_out_of_dict: list[list[list[float]]] = []
 
@@ -371,7 +350,7 @@ class DataSamplesTensors:
 
         for _ in range(map_size):
             key = decoder.decode()  # Decode the key
-            print(f"Processing field: {key}")
+            # print(f"Processing field: {key}")
 
             if key == "info":
                 data = decoder.decode()
@@ -399,6 +378,7 @@ class DataSamplesTensors:
                 else:
                     raise ValueError("Indefinite-length arrays are not supported.")
 
+                print(f"\r\033[KLoading trainset samples: 0/{list_size}", end="", flush=True)
                 for i in range(list_size):
                     sample_from_label = decoder.decode()
                     tensor_samples: list[torch.Tensor] = []
@@ -407,6 +387,7 @@ class DataSamplesTensors:
                     del sample_from_label
                     samples.append(torch.stack(tensor_samples))
                     del tensor_samples
+                    print(f"\r\033[KLoading trainset samples: {i + 1}/{list_size} [{info.labels[i]}]", end="", flush=True)
 
         cls = cls(info=info)
         cls.samples = samples
@@ -460,15 +441,23 @@ class DataSamplesTensors:
         validation_out: list[int] = []
 
         for i in range(len(self.samples)):
-            split_index = int(self.samples[i].shape[0] * (1 - split_ratio))
+            indices = torch.randperm(self.samples[i].size(0))  # Random permutation of row indices
+            shuffled_tensor: torch.Tensor = self.samples[i][indices]
+
+            split_index = int(shuffled_tensor.shape[0] * (1 - split_ratio))
+
             if i in confused_label:
-                confusion_in += self.samples[i][:split_index]
+                confusion_in += shuffled_tensor[:split_index]
                 confusion_out += [i] * split_index
+
             if include_confused_label_in_train or i not in confused_label:
-                train_in += self.samples[i][:split_index]
+                train_in += shuffled_tensor[:split_index]
                 train_out += [i] * split_index
-            validation_in += self.samples[i][split_index:]
-            validation_out += [i] * (self.samples[i].shape[0] - split_index)
+
+            validation_in += shuffled_tensor[split_index:]
+            validation_out += [i] * (shuffled_tensor.shape[0] - split_index)
+
+            del shuffled_tensor
 
         def to_stack(samples: list[torch.Tensor]) -> torch.Tensor | None:
             if len(samples) == 0:
