@@ -264,7 +264,7 @@ class DataSamples:
     #     trainset2.getNumberOfSamples()
     #     return trainset1, trainset2
 
-    def getClassWeights(self, balance_weight: bool = True, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+    def getClassWeights(self, balance_weight: bool = True, class_weights: dict[str, float] = {}, device: torch.device = torch.device("cpu")) -> torch.Tensor:
         weigths: list[float] = []
         if balance_weight:
             smallest_class = len(self.samples[0])
@@ -272,7 +272,7 @@ class DataSamples:
                 if len(sample) < smallest_class:
                     smallest_class = len(sample)
             for sample in self.samples:
-                weigths.append(smallest_class / len(sample))
+                weigths.append((smallest_class / len(sample)) * class_weights.get(self.info.label_explicit[sample], 1))
         else:
             for sample in self.samples:
                 weigths.append(1)
