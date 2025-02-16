@@ -286,6 +286,7 @@ class DataSample2:
     framerate: int = 30
     # This attribute tells the trainset generator if the sample can be mirrored, put it to false if the gesture is not symmetrical (e.g z french sign)
     mirrorable: bool = True
+    invalid: bool = False
 
     @classmethod
     def from_dict(cls, json_data: dict):

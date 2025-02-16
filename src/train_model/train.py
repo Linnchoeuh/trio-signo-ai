@@ -51,7 +51,7 @@ def cross_entropy_train_epoch(model: SignRecognizerTransformer, dataloader: Data
         tuple[torch.Tensor, AccuracyCalculator]: tuple(loss, accuracy_calculator)
     """
     model.train()
-    accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.labels)
+    accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.label_explicit)
 
     for inputs, labels in dataloader:
         inputs, labels = inputs.to(model.device), labels.to(model.device)
@@ -101,7 +101,7 @@ def validation_epoch(model: SignRecognizerTransformer, dataloader: DataLoader, c
         tuple[torch.Tensor, AccuracyCalculator]: tuple(loss, accuracy_calculator)
     """
     model.eval()
-    accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.labels)
+    accuracy_calculator: AccuracyCalculator = AccuracyCalculator(model.info.label_explicit)
 
     with torch.no_grad():
         for inputs, labels in dataloader:

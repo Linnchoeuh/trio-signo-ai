@@ -1,6 +1,7 @@
 import cbor2
 import random
 import io
+from collections import deque
 from dataclasses import dataclass, fields
 
 from src.gesture import *
@@ -16,25 +17,19 @@ class TrainTensors:
 class DataSamplesInfo:
     labels: list[str]
     label_map: dict[str, int]
+    label_explicit: list[str]
     memory_frame: int
     active_gestures: ActiveGestures
     one_side: bool
 
 
-    def __init__(self, labels: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, label_map: dict[str, int] = None, one_side: bool = False):
+    def __init__(self, labels: list[str], label_explicit: list[str], memory_frame: int, active_gestures: ActiveGestures = ALL_GESTURES, one_side: bool = False):
         self.labels = labels
+        self.label_explicit = label_explicit
         self.memory_frame = memory_frame
         self.active_gestures = active_gestures
-        self.label_map = label_map
+        self.label_map = {label: i for i, label in enumerate(self.label_explicit)}
         self.one_side = one_side
-
-
-        if self.label_map is None:
-            self.label_map = {label: i for i, label in enumerate(labels)}
-        else:
-            for label in labels:
-                if label not in self.label_map:
-                    raise ValueError(f"Label {label} not found in label_map")
 
     @classmethod
     def fromDict(cls, data: dict):
@@ -42,11 +37,12 @@ class DataSamplesInfo:
         active_gest: ActiveGestures = None
         if active_gest_dict is not None:
             active_gest = ActiveGestures(**active_gest_dict)
+        label_explicit: list[str] = data.get('label_explicit', data['labels'])
         return cls(
             labels=data['labels'],
+            label_explicit=label_explicit,
             memory_frame=data['memory_frame'],
             active_gestures=active_gest,
-            label_map=data.get('label_map', None),
             one_side=data.get('one_side', False)
         )
 
@@ -56,6 +52,7 @@ class DataSamplesInfo:
             active_gestures = self.active_gestures.to_dict()
         return {
             'labels': self.labels,
+            'label_explicit': self.label_explicit,
             'memory_frame': self.memory_frame,
             'active_gestures': active_gestures,
             'label_map': self.label_map,
@@ -73,7 +70,7 @@ class DataSamples:
 
         self.valid_fields: list[str] = info.active_gestures.getActiveFields()
         self.samples = []
-        while len(self.samples) < len(info.labels):
+        while len(self.samples) < len(info.label_explicit):
             self.samples.append({})
 
 
@@ -85,8 +82,8 @@ class DataSamples:
 
         sample_label_id: int = 0
         for labeled_samples in dict_sample:
-            current_label: str = cls.info.labels[sample_label_id]
-            # print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.labels)}", end="", flush=True)
+            current_label: str = cls.info.label_explicit[sample_label_id]
+            # print(f"\rLoading label: ({current_label}) {cls.info.label_map[current_label]}/{len(cls.info.label_explicit)}", end="", flush=True)
             for sample in labeled_samples:
                 # new_datasample: DataSample2 = DataSample2.unflat(current_label, sample, cls.valid_fields)
                 cls.samples[sample_label_id][id(sample)] = sample
@@ -194,7 +191,7 @@ class DataSamples:
         return tensors
 
     def getTensorsFromLabelId(self, label_int: int, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
-        return self.getTensorsFromLabel(self.info.labels[label_int], device)
+        return self.getTensorsFromLabel(self.info.label_explicit[label_int], device)
 
     def addDataSample(self, data_sample: DataSample2):
         # Get or cache label_id
@@ -296,7 +293,7 @@ class DataSamplesTensors:
 
         self.valid_fields = info.active_gestures.getActiveFields()
         self.samples = []
-        while len(self.samples) < len(info.labels):
+        while len(self.samples) < len(info.label_explicit):
             self.samples.append(None)
 
 
@@ -307,7 +304,7 @@ class DataSamplesTensors:
         # print(len(cls.samples))
 
         for sample_label_id in range(len(dict_sample)):
-            current_label: str = cls.info.labels[sample_label_id]
+            current_label: str = cls.info.label_explicit[sample_label_id]
 
             tensor_samples: list[torch.Tensor] = []
             for sample in dict_sample[sample_label_id]:
@@ -381,18 +378,72 @@ class DataSamplesTensors:
                 print(f"\r\033[KLoading trainset samples: 0/{list_size}", end="", flush=True)
                 for i in range(list_size):
                     sample_from_label = decoder.decode()
-                    tensor_samples: list[torch.Tensor] = []
+                    tensor_samples: deque[torch.Tensor] = deque()
                     for sample in sample_from_label:
                         tensor_samples.append(DataSample2.unflat("", sample, valid_fields).to_tensor(info.memory_frame, valid_fields))
                     del sample_from_label
-                    samples.append(torch.stack(tensor_samples))
+                    samples.append(torch.stack(tuple(tensor_samples)))
                     del tensor_samples
-                    print(f"\r\033[KLoading trainset samples: {i + 1}/{list_size} [{info.labels[i]}]", end="", flush=True)
+                    print(f"\r\033[KLoading trainset samples: {i + 1}/{list_size} [{info.label_explicit[i]}]", end="", flush=True)
 
         cls = cls(info=info)
         cls.samples = samples
         cls.getNumberOfSamples()
         return cls
+
+    @classmethod
+    def dumpInfo(cls, file_path: str) -> tuple[DataSamplesInfo, list[int]]:
+        with open(file_path, 'rb') as f:
+            decoder: cbor2.CBORDecoder = cbor2.CBORDecoder(f)
+
+            info: DataSamplesInfo = None
+            sublist_lengths: list[int] = []
+
+            # Decode the CBOR map header
+            initial_byte = decoder.read(1)[0]  # Read the first byte
+            major_type = initial_byte >> 5     # Extract the major type (should be 5 for maps)
+            if major_type != 5:
+                raise ValueError("The first item is not a CBOR map!")
+
+            # Extract the size of the map
+            map_size = initial_byte & 0x1F
+            if map_size == 31:  # Indefinite-length maps not supported in this example
+                raise ValueError("Indefinite-length maps are not supported in this example!")
+
+            for _ in range(map_size):
+                key = decoder.decode()  # Decode the key
+
+                if key == "info":
+                    data = decoder.decode()
+                    info = DataSamplesInfo.fromDict(data)
+                elif key == "samples":
+                    header = decoder.read(1)[0]  # Read the array header
+                    major_type = header >> 5
+                    additional_info = header & 0x1F
+
+                    if major_type != 4:
+                        raise ValueError(f"Expected array for 'samples', got type {major_type}.")
+
+                    # Decode the size of the array based on the additional information
+                    if additional_info < 24:
+                        list_size = additional_info  # Directly encoded size
+                    elif additional_info == 24:
+                        list_size = decoder.read(1)[0]  # Next byte contains the size
+                    elif additional_info == 25:
+                        list_size = int.from_bytes(decoder.read(2), "big")  # 16-bit size
+                    elif additional_info == 26:
+                        list_size = int.from_bytes(decoder.read(4), "big")  # 32-bit size
+                    elif additional_info == 27:
+                        list_size = int.from_bytes(decoder.read(8), "big")  # 64-bit size
+                    else:
+                        raise ValueError("Indefinite-length arrays are not supported.")
+
+                    for i in range(list_size):
+                        sample_from_label = decoder.decode()
+                        sublist_lengths.append(len(sample_from_label))
+                        del sample_from_label
+
+            return info, sublist_lengths
 
     @classmethod
     def fromCborFile(cls, file_path: str):

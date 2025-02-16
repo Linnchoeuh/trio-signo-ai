@@ -31,6 +31,7 @@ OPTIONS:
 \t-x: (-s [string (label)]) NULL dataset: Define the null labeled output for the model further training data.
 \t-b: (-b (enables)) Balance the number of element between label in the training dataset
 \t-o: (-o (enables)) One sides all the sign making left and right hand the same
+\t-i: (-i (enables)) Will split the null label into sub label.
 \t-a: (-a [string]) Active point: Let you define which point to activate in the training dataset
 \t    (e.g: only the right hand points can be set to active) (Default: all points are active):{a_param_description}
 \t[DATASET1 DATASET2 ...]: List of dataset to use to generate the training dataset, the program will take the corresponding folder in the \"datasets\" directory.
@@ -107,7 +108,8 @@ def summary_checker(dataset_name: str, null_label: str, labels: list[str], total
         if answer == "n":
             exit(0)
 
-def load_datasamples(dataset_labels: list[str], memory_frame: int, null_label: str = None) -> dict[str, list[DataSample2]]:
+def load_datasamples(dataset_labels: list[str], memory_frame: int, null_label: str = None, null_sub_sample: bool = False) -> tuple[dict[str, list[DataSample2]], list[str]]:
+    dataset_labels_explicit: list[str] = copy.deepcopy(dataset_labels)
     data_samples: dict[str, list[DataSample2]] = {}
     for label_name in dataset_labels:
         label_path: str = f"{DATASETS_DIR}/{label_name}"
@@ -123,19 +125,25 @@ def load_datasamples(dataset_labels: list[str], memory_frame: int, null_label: s
                 data_samples[label_name].append(sample)
             except Exception as e:
                 if null_label is not None and dataset_sample == "counter_example" and os.path.isdir(f"{label_path}/{dataset_sample}"):
+                    sub_null_label = null_label
+                    if null_sub_sample:
+                        sub_null_label = f"{null_label}_{label_name}"
+                        dataset_labels_explicit.append(sub_null_label)
+                        data_samples[sub_null_label] = []
                     file_names = os.listdir(f"{label_path}/{dataset_sample}")
                     for file_name in file_names:
                         try:
                             sample: DataSample2 = DataSample2.from_json_file(f"{label_path}/{dataset_sample}/{file_name}")
-                            sample.label = null_label
+                            sample.label = sub_null_label
+                            sample.invalid = True
                             if len(sample.gestures) > memory_frame:
                                 sample.reframe(memory_frame)
-                            data_samples[label_name].append(sample)
+                            data_samples[sub_null_label].append(sample)
                         except Exception as e:
                             print(f"\nError: {dataset_sample}/{file_name} is not a valid json file. {e}")
                 else:
                     print(f"\nError: {dataset_sample} is not a valid json file. {e}")
-    return data_samples
+    return data_samples, dataset_labels_explicit
 
 def main():
     i = 1
@@ -148,6 +156,7 @@ def main():
     requested_active_gesture: list[ActiveGestures] = []
     balance: bool = False
     one_side: bool = False
+    null_sub_sample: bool = False
     while i < len(sys.argv):
         args = sys.argv[i]
         # print(args)
@@ -180,6 +189,8 @@ def main():
                     balance = True
                 case "o":
                     one_side = True
+                case "i":
+                    null_sub_sample = True
                 case _:
                     print(f"Invalid argument: {args}")
                     exit(1)
@@ -212,11 +223,15 @@ def main():
 
     summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, one_side, active_gesture)
 
-    train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, nb_frame, active_gesture, one_side=one_side))
-
     print("Loading samples into memory...", end=" ")
-    data_samples: dict[str, list[DataSample2]] = load_datasamples(dataset_labels, memory_frame=nb_frame, null_label=null_set)
+    data_samples, dataset_labels_explicit = load_datasamples(dataset_labels, memory_frame=nb_frame, null_label=null_set)
+    while null_set is not None and len(dataset_labels_explicit) > len(dataset_labels):
+        dataset_labels.append(null_set)
     print("[DONE]")
+
+
+    train_data: DataSamples = DataSamples(DataSamplesInfo(dataset_labels, dataset_labels_explicit, nb_frame, active_gesture, one_side=one_side))
+    print(train_data.info.label_map)
     total_cycle = sum([len(samples) for samples in data_samples.values()]) * total_subsets
     completed_cycle = 0
 
@@ -268,10 +283,10 @@ def main():
 
         label_id: int = 0
         completed_cycle: int = 0
-        total_cycle = (biggest_label_count * len(train_data.info.labels)) - train_data.getNumberOfSamples()
+        total_cycle = (biggest_label_count * len(train_data.info.label_explicit)) - train_data.getNumberOfSamples()
         while label_id < len(train_data.samples):
             i: int = 0
-            current_data_samples = data_samples[train_data.info.labels[label_id]]
+            current_data_samples = data_samples[train_data.info.label_explicit[label_id]]
             data_sample_len = len(current_data_samples)
             # print(len(train_data.samples[label_id]), biggest_label_count)
             while len(train_data.samples[label_id]) < biggest_label_count:
