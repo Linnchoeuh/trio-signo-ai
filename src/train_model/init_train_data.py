@@ -65,6 +65,6 @@ def init_train_set(args: Args, current_time: str = time.strftime('%d-%m-%Y_%H-%M
 
     weigths_balance: torch.Tensor = None
     if args.balance_weights:
-        weigths_balance = train_data.getClassWeights()
+        weigths_balance = train_data.getClassWeights(class_weights=args.class_weights)
 
     return (train_dataloader, validation_dataloader, confuse_dataloader, model_info, weigths_balance, confused_sets, train_stats)

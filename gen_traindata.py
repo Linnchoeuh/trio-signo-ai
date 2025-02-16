@@ -224,7 +224,7 @@ def main():
     summary_checker(dataset_name, null_set, dataset_labels, total_subsets, nb_frame, dataset_name, one_side, active_gesture)
 
     print("Loading samples into memory...", end=" ")
-    data_samples, dataset_labels_explicit = load_datasamples(dataset_labels, memory_frame=nb_frame, null_label=null_set)
+    data_samples, dataset_labels_explicit = load_datasamples(dataset_labels, memory_frame=nb_frame, null_label=null_set, null_sub_sample=null_sub_sample)
     while null_set is not None and len(dataset_labels_explicit) > len(dataset_labels):
         dataset_labels.append(null_set)
     print("[DONE]")
@@ -243,7 +243,7 @@ def main():
         label_id: int = train_data.info.label_map[label]
         label_total_samples: int = len(samples)
 
-        print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+        print_progression(dataset_labels_explicit, label_id, treated_sample, label_total_samples,
                           subset, total_subsets, train_data.sample_count,
                           start_time, completed_cycle, total_cycle)
 
@@ -253,7 +253,7 @@ def main():
 
             subset = 0
             while subset < total_subsets:
-                print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+                print_progression(dataset_labels_explicit, label_id, treated_sample, label_total_samples,
                                   subset, total_subsets, train_data.sample_count,
                                   start_time, completed_cycle, total_cycle)
                 train_data.addDataSamples(create_subset(sample, nb_frame, data_samples, null_set, active_gesture))
@@ -261,11 +261,11 @@ def main():
                 subset += 1
 
             treated_sample += 1
-            print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+            print_progression(dataset_labels_explicit, label_id, treated_sample, label_total_samples,
                               subset, total_subsets, train_data.sample_count,
                               start_time, completed_cycle, total_cycle)
 
-        print_progression(dataset_labels, label_id, treated_sample, label_total_samples,
+        print_progression(dataset_labels_explicit, label_id, treated_sample, label_total_samples,
                           subset, total_subsets, train_data.sample_count,
                           start_time, completed_cycle, total_cycle)
 
