@@ -144,7 +144,8 @@ def main():
     dataset_name: str = None
     nb_frame = 15
     null_set: str = None
-    active_gesture: ActiveGestures = ALL_GESTURES
+    active_gesture: ActiveGestures = None
+    requested_active_gesture: list[ActiveGestures] = []
     balance: bool = False
     one_side: bool = False
     while i < len(sys.argv):
@@ -170,11 +171,11 @@ def main():
                     dataset_labels.append(null_set)
                 case "a":
                     i += 1
-                    tmp: dict[str, ActiveGestures] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
+                    tmp: tuple[ActiveGestures, str] = ACTIVATED_GESTURES_PRESETS.get(sys.argv[i])
                     if tmp is None:
                         print("Invalid active gesture preset")
                         exit(1)
-                    active_gesture = tmp[0]
+                    requested_active_gesture.append(tmp[0])
                 case "b":
                     balance = True
                 case "o":
@@ -185,6 +186,11 @@ def main():
         else:
             dataset_labels.append(args)
         i += 1
+
+    if len(requested_active_gesture):
+        active_gesture = ActiveGestures.buildWithPreset(requested_active_gesture)
+    else:
+        active_gesture = ALL_GESTURES
 
     folders = os.listdir(DATASETS_DIR)
 
