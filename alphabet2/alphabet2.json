@@ -52,7 +52,7 @@
         "l_pinky_pip": null,
         "l_pinky_dip": null,
         "l_pinky_tip": null,
-        "r_hand_position": true,
+        "r_hand_position": null,
         "r_wrist": true,
         "r_thumb_cmc": true,
         "r_thumb_mcp": true,
@@ -73,7 +73,9 @@
         "r_pinky_mcp": true,
         "r_pinky_pip": true,
         "r_pinky_dip": true,
-        "r_pinky_tip": true
+        "r_pinky_tip": true,
+        "l_hand_velocity": null,
+        "r_hand_velocity": true
     },
     "label_map": {
         "_null": 0,
