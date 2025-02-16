@@ -35,6 +35,7 @@ class ModelInfo(DataSamplesInfo):
         return cls(
             labels=info.labels,
             label_map=info.label_map,
+            label_explicit=info.label_explicit,
             memory_frame=info.memory_frame,
             active_gestures=active_gestures,
             name=name,
