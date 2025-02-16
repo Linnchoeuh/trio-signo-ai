@@ -579,7 +579,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
 
         return self
 
-    def moveToOneSide(self, right_side: bool = False) -> "DataGestures":
+    def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
         dest_side = "r_" if right_side else "l_"
         src_side = "l_" if right_side else "r_"
 
