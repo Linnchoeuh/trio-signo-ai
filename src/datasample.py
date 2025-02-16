@@ -353,8 +353,10 @@ class DataSample2:
 
     def computeHandVelocity(self) -> 'DataSample2':
         for i in range(len(self.gestures) - 1):
-            self.gestures[i].r_hand_velocity = [self.gestures[i].r_wrist[k] - self.gestures[i + 1].r_wrist[k] for k in range(3)]
-            self.gestures[i].l_hand_velocity = [self.gestures[i].l_wrist[k] - self.gestures[i + 1].l_wrist[k] for k in range(3)]
+            if self.gestures[i].r_hand_position is not None and self.gestures[i + 1].r_hand_position is not None:
+                self.gestures[i].r_hand_velocity = [self.gestures[i].r_hand_position[k] - self.gestures[i + 1].r_hand_position[k] for k in range(3)]
+            if self.gestures[i].l_hand_position is not None and self.gestures[i + 1].l_hand_position is not None:
+                self.gestures[i].l_hand_velocity = [self.gestures[i].l_hand_position[k] - self.gestures[i + 1].l_hand_position[k] for k in range(3)]
         return self
 
     def noise_sample(self, range: float = 0.004, valid_fields: list[str] = None) -> 'DataSample2':
