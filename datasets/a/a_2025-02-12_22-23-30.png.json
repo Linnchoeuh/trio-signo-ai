@@ -133,9 +133,12 @@
 "r_pinky_mcp": null,
 "r_pinky_pip": null,
 "r_pinky_dip": null,
-"r_pinky_tip": null
+"r_pinky_tip": null,
+"l_hand_velocity": null,
+"r_hand_velocity": null
 }
 ],
 "framerate": 30,
-"mirrorable": true
+"mirrorable": true,
+"invalid": false
 }
