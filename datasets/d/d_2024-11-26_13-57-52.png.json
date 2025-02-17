@@ -133,9 +133,12 @@
 0.03777867183089256,
 0.007195419631898403,
 -0.04588906094431877
-]
+],
+"l_hand_velocity": null,
+"r_hand_velocity": null
 }
 ],
 "framerate": 30,
-"mirrorable": true
+"mirrorable": true,
+"invalid": false
 }
