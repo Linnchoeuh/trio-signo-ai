@@ -186,6 +186,7 @@ while run:
     win.fill((0, 0, 0))
 
     sample_cpy: DataSample2 = copy.deepcopy(sample)
+    # sample_cpy.noise_sample(0.004)
 
 
     # ROT_ANGLE = math.pi / 4
