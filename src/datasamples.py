@@ -527,15 +527,17 @@ class DataSamplesTensors:
     def getTensorsFromLabel(self, label: str, device: torch.device = torch.device("cpu")) -> list[torch.Tensor]:
         return self.getTensorsFromLabelId(self.info.label_map[label], device)
 
-    def getClassWeights(self, balance_weight: bool = True, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+    def getClassWeights(self, balance_weight: bool = True, class_weights: dict[str, float] = {}, device: torch.device = torch.device("cpu")) -> torch.Tensor:
         weigths: list[float] = []
         if balance_weight:
-            smallest_class = len(self.samples[0])
+            smallest_class = self.samples[0].shape[0]
             for sample in self.samples:
-                if len(sample) < smallest_class:
-                    smallest_class = len(sample)
+                if sample.shape[0] < smallest_class:
+                    smallest_class = sample.shape[0]
+            i: int = 0
             for sample in self.samples:
-                weigths.append(smallest_class / len(sample))
+                weigths.append(smallest_class / sample.shape[0] * class_weights.get(self.info.label_explicit[i], 1))
+                i += 1
         else:
             for sample in self.samples:
                 weigths.append(1)
