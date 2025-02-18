@@ -25,8 +25,10 @@ screenshot_delay = 0  # Delay before saving screenshots
 parser = argparse.ArgumentParser(description="Sign recognition with video recording.")
 parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
 parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
+parser.add_argument("--counter-example", action='store_true', help="Will save the sign as a counter example of the label set in --label.")
 args = parser.parse_args()
 video_label = args.label
+counter_example: bool = args.counter_example
 
 # Load models
 print("Loading sign recognition model...")
@@ -156,7 +158,11 @@ while True:
             else:
                 is_recording = False
                 out.release()
-                data_sample.to_json_file(f"{save_folder}{video_label}/{file_name}.json")
+                if counter_example:
+                    os.makedirs(f"{save_folder}{video_label}/counter_example", exist_ok=True)
+                    data_sample.to_json_file(f"{save_folder}{video_label}/counter_example/{file_name}.json")
+                else:
+                    data_sample.to_json_file(f"{save_folder}{video_label}/{file_name}.json")
                 update_json(label_json_path, {"filename": file_name, "label": video_label})
 
         elif key == TAB:
@@ -200,7 +206,11 @@ while True:
 
                 result, _ = track_hand(og_frame, handland_marker)
                 image_sample.insert_gesture_from_landmarks(0, result)
-                image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
+                if counter_example:
+                    os.makedirs(f"{save_folder}{image_label}/counter_example", exist_ok=True)
+                    image_sample.to_json_file(f"{save_folder}{image_label}/counter_example/{file_name}.json")
+                else:
+                    image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
 
 
 record.release()

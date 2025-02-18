@@ -29,6 +29,7 @@ class Args:
     num_layers: int = 3
     ff_dim: int = None
     confusing_label: dict[str, str] = field(default_factory=dict)
+    class_weights: dict[str, float] = field(default_factory=dict)
     batch_size: int = 32
 
 
@@ -181,6 +182,14 @@ def parse_args() -> Args:
         required=False,
         default=32,
         type=int)
+    parser.add_argument(
+        '--class-weight',
+        help='USAGE: --class-weight <label> <weight[float]> | Set a multiplication factor for the loss function for a specific label.',
+        required=False,
+        action='extend',
+        default=None,
+        type=str,
+        nargs=2)
 
     term_args: argparse.Namespace = parser.parse_args()
 
@@ -204,6 +213,16 @@ def parse_args() -> Args:
             exit(1)
         args.confusing_label[c_label] = c_label2
         print(f"\t{c_label} <=> {c_label2}")
+        i += 2
+
+    if term_args.class_weight is None:
+        term_args.class_weight = []
+    i: int = 0
+    while i < len(term_args.class_weight):
+        args.balance_weights = True
+        label = term_args.class_weight[i]
+        weight = float(term_args.class_weight[i+1])
+        args.class_weights[label] = weight
         i += 2
 
     args.device_type = term_args.device

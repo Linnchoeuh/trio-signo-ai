@@ -57,6 +57,9 @@ def gen_dynamic_data(sample: DataSample2, nb_frame: int, null_set: str = None, a
     sub_sample: deque[DataSample2] = deque()
     hands_positions: list[str] = HANDS_POSITION.getActiveFields()
 
+    if sample.invalid and null_set is not None:
+        null_set = sample.label
+
     tmp_sample: DataSample2 = None
 
     for i in range(2):
