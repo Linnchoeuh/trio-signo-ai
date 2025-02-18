@@ -28,6 +28,35 @@
         "y",
         "z"
     ],
+    "label_explicit": [
+        "_null",
+        "a",
+        "b",
+        "c",
+        "d",
+        "e",
+        "f",
+        "g",
+        "h",
+        "i",
+        "j",
+        "k",
+        "l",
+        "m",
+        "n",
+        "o",
+        "p",
+        "q",
+        "r",
+        "s",
+        "t",
+        "u",
+        "v",
+        "w",
+        "x",
+        "y",
+        "z"
+    ],
     "memory_frame": 15,
     "active_gestures": {
         "l_hand_position": null,
@@ -52,7 +81,7 @@
         "l_pinky_pip": null,
         "l_pinky_dip": null,
         "l_pinky_tip": null,
-        "r_hand_position": true,
+        "r_hand_position": null,
         "r_wrist": true,
         "r_thumb_cmc": true,
         "r_thumb_mcp": true,
@@ -73,7 +102,9 @@
         "r_pinky_mcp": true,
         "r_pinky_pip": true,
         "r_pinky_dip": true,
-        "r_pinky_tip": true
+        "r_pinky_tip": true,
+        "l_hand_velocity": null,
+        "r_hand_velocity": true
     },
     "label_map": {
         "_null": 0,
@@ -108,6 +139,6 @@
     "name": "alphabet2",
     "d_model": 32,
     "num_heads": 8,
-    "num_layers": 2,
+    "num_layers": 3,
     "ff_dim": 128
 }
