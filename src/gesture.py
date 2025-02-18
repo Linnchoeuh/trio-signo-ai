@@ -72,6 +72,9 @@ class Gestures(Generic[T]):
     r_pinky_dip: T = None
     r_pinky_tip: T = None
 
+    l_hand_velocity: T = None
+    r_hand_velocity: T = None
+
 FIELDS: list[str] = [field.name for field in fields(Gestures())]
 FIELD_DIMENSION: int = 3
 
@@ -160,7 +163,10 @@ LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
 LEFT_HAND_POSITION: ActiveGestures = ActiveGestures(
     l_hand_position=True
 )
-LEFT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION])
+LEFT_HAND_VELOCITY: ActiveGestures = ActiveGestures(
+    l_hand_velocity=True
+)
+LEFT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION, LEFT_HAND_VELOCITY])
 RIGHT_HAND_POINTS: ActiveGestures = ActiveGestures(
     r_wrist=True,
     r_thumb_cmc=True,
@@ -187,10 +193,14 @@ RIGHT_HAND_POINTS: ActiveGestures = ActiveGestures(
 RIGHT_HAND_POSITION: ActiveGestures = ActiveGestures(
     r_hand_position=True
 )
-RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION])
+RIGHT_HAND_VELOCITY: ActiveGestures = ActiveGestures(
+    r_hand_velocity=True
+)
+RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION, RIGHT_HAND_VELOCITY])
 
 HANDS_POINTS: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, RIGHT_HAND_POINTS])
 HANDS_POSITION: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_POSITION])
+HANDS_VELOCITY: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_VELOCITY, RIGHT_HAND_VELOCITY])
 
 HANDS_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_FULL, RIGHT_HAND_FULL])
 ALL_GESTURES: ActiveGestures = ActiveGestures()
@@ -209,6 +219,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
         LEFT_HAND_POSITION,
         "Will only provide information about left hand position."
     ),
+    'left_hand_velocity': (
+        LEFT_HAND_VELOCITY,
+        "Will only provide information about left hand velocity."
+    ),
     'left_hand_full': (
         LEFT_HAND_FULL,
         "Will provide information about left hand finger position, hand rotation and position."
@@ -221,6 +235,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
         RIGHT_HAND_POSITION,
         "Will only provide information about right hand position."
     ),
+    'right_hand_velocity': (
+        RIGHT_HAND_VELOCITY,
+        "Will only provide information about right hand velocity."
+    ),
     'right_hand_full': (
         RIGHT_HAND_FULL,
         "Will provide information about right hand finger position, hand rotation and position."
@@ -232,6 +250,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
     'hands_position': (
         HANDS_POSITION,
         "Will only provide information about both hands position."
+    ),
+    'hands_velocity': (
+        HANDS_VELOCITY,
+        "Will only provide information about both hands velocity."
     ),
     'hands_full': (
         HANDS_FULL,
@@ -552,6 +574,9 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         self.r_pinky_dip, self.l_pinky_dip = self.l_pinky_dip, self.r_pinky_dip
         self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
 
+        self.r_hand_position, self.l_hand_position = self.l_hand_position, self.r_hand_position
+        self.r_hand_velocity, self.l_hand_velocity = self.l_hand_velocity, self.r_hand_velocity
+
         return self
 
     def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
@@ -564,5 +589,9 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                 opposite_field_name = field_name.replace(src_side, dest_side, 1)
                 dest_side_value: list[float] | None = getattr(self, field_name.replace(src_side, dest_side))
                 if dest_side_value is None:
+                    if src_side_val is not None:
+                        src_side_val[0] *= -1
+                        # src_side_val[1] *= -1
+                        src_side_val[2] *= -1
                     setattr(self, opposite_field_name, src_side_val)
                     setattr(self, field_name, None)

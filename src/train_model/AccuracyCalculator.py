@@ -3,8 +3,8 @@ import torch
 class AccuracyCalculator:
     def __init__(self, labels: list[str]):
         self.num_classes: int = len(labels)
-        self.correct_per_class: list[float] = None
-        self.total_per_class: list[float] = None
+        self.correct_per_class: list[int] = None
+        self.total_per_class: list[int] = None
         self.labels: list[str] = labels
         self.reset()
 
@@ -14,7 +14,9 @@ class AccuracyCalculator:
 
     def calculate_accuracy(self, outputs: torch.Tensor, labels: torch.Tensor):
         # Get predictions
+        # print(outputs)
         _, predictions = torch.max(outputs, 1)  # Predicted class indices
+        # print(predictions)
 
         # Update correct and total counts for each class
         for label in range(self.num_classes):
@@ -24,6 +26,9 @@ class AccuracyCalculator:
     def get_accuracy(self) -> tuple[float, list[float]]:
         avg_accuracy = sum(self.correct_per_class) / sum(self.total_per_class) if sum(self.total_per_class) > 0 else 0
         return (avg_accuracy, [correct / total if total > 0 else 0 for correct, total in zip(self.correct_per_class, self.total_per_class)])
+
+    def get_correct_over_total(self) -> list[list[int, int]]:
+        return [[correct, total] for correct, total in zip(self.correct_per_class, self.total_per_class)]
 
     def print_accuracy_table(self, pre_str: str = "\t",
                              color_chart: list[tuple[float, tuple[int, int, int]]] = [

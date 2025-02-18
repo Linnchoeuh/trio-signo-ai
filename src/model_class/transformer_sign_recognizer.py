@@ -22,6 +22,7 @@ class ModelInfo(DataSamplesInfo):
     def build(cls, info: DataSamplesInfo, active_gestures: ActiveGestures = None, name: str = None) -> 'ModelInfo':
         if name is None:
             name = f"model_{time.strftime('%d-%m-%Y_%H-%M-%S')}"
+        name = name.replace("/", "").replace("\\", "")
 
         if active_gestures is None:
             active_gestures = info.active_gestures
@@ -34,6 +35,7 @@ class ModelInfo(DataSamplesInfo):
         return cls(
             labels=info.labels,
             label_map=info.label_map,
+            label_explicit=info.label_explicit,
             memory_frame=info.memory_frame,
             active_gestures=active_gestures,
             name=name,
@@ -155,20 +157,17 @@ class SignRecognizerTransformer(nn.Module):
     def loadPthFile(self, model_path):
         self.load_state_dict(torch.load(model_path, map_location=self.device))
 
-    def saveModel(self, model_name: str = None):
-        if model_name is None:
-            model_name = self.info.name
-        if model_name.endswith(".pth"):
-            model_name = model_name[:-4]
-        if model_name.endswith(".json"):
-            model_name = model_name[:-5]
-        print(f"Saving model to {model_name}...", end="", flush=True)
+    def saveModel(self, model_path: str = None):
+        if model_path is None:
+            model_path = self.info.name
+        print(f"Saving model to {model_path}...", end="", flush=True)
 
-        os.makedirs(model_name, exist_ok=True)
-        full_name = f"{model_name}/{model_name}"
+        os.makedirs(model_path, exist_ok=True)
+        full_name = f"{model_path}/{self.info.name}"
         torch.save(self.state_dict(), full_name + ".pth")
         self.info.to_json_file(full_name + ".json")
         print("[DONE]")
+        return model_path
 
     def forward(self, x: torch.Tensor, return_embeddings: bool = False):
         x = self.embedding(x) + self.pos_encoding  # Embedding + Positional Encoding
