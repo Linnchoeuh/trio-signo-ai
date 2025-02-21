@@ -28,6 +28,12 @@ except:
     for file in os.listdir(sys.argv[1]):
         if file.endswith(".json"):
             samples.append((DataSample2.from_json_file(f"{sys.argv[1]}/{file}"), f"{sys.argv[1]}/{file}"))
+            # samples[-1][0].noise_sample()
+
+# for sample in samples:
+#     sample[0].move_to_one_side()
+#     print(f"Sample: {sample[0]}")
+
 samples.sort(key=lambda x: x[1])
 samples.sort(key=lambda x: len(x[1]))
 # sample.scale_sample(y=0)
@@ -154,14 +160,19 @@ while run:
             if event.key == pygame.K_r:
                 rot_x = 0
                 rot_y = 0
-            if event.key == pygame.K_PAGEUP:
+            if event.key == pygame.K_PAGEUP or event.key == pygame.K_q:
                 selected_sample = (selected_sample - 1) % len(samples)
-            if event.key == pygame.K_PAGEDOWN:
+            if event.key == pygame.K_PAGEDOWN or event.key == pygame.K_d:
                 selected_sample = (selected_sample + 1) % len(samples)
             if event.key == pygame.K_w:
                 sample.to_json_file(samples[selected_sample][1])
             if event.key == pygame.K_m:
                 sample.swap_hands()
+            if event.key == pygame.K_DELETE:
+                try:
+                    os.remove(samples[selected_sample][1])
+                except:
+                    print("Error deleting file")
 
     if pygame.key.get_pressed()[pygame.K_LEFT]:
         rot_y -= 0.2 * BASE_FPS / FPS
@@ -175,10 +186,20 @@ while run:
     win.fill((0, 0, 0))
 
     sample_cpy: DataSample2 = copy.deepcopy(sample)
+    # sample_cpy.noise_sample(0.004)
 
-    # sample_cpy.round_gesture_coordinates(round_decimal)
-    # sample_cpy.randomize_points()
-    # sample_cpy.deform_hand(1.5, 1, 1)
+
+    # ROT_ANGLE = math.pi / 4
+    # sample_cpy.rotate_sample(ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+    #                   ROT_ANGLE - (ROT_ANGLE / 2) + (rand_fix_interval(ROT_ANGLE / 2)),
+    #                   rand_fix_interval(math.pi / 10))
+    # sample_cpy.scale_sample(1 + rand_fix_interval(0.2),
+    #                 1 + rand_fix_interval(0.2),
+    #                 1 + rand_fix_interval(0.2))
+    # sample_cpy.translate_sample(rand_fix_interval(0.01),
+    #                    rand_fix_interval(0.01),
+    #                    rand_fix_interval(0.01))
+    # sample_cpy.noise_sample(0.004)
 
     hand_frame: DataGestures = copy.deepcopy(sample_cpy.gestures[frame % len(sample_cpy.gestures)])
     hand_frame.rotate(rot_x, rot_y, 0)

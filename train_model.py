@@ -4,56 +4,66 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 import json
+import shutil
 
 from src.datasample import *
-from src.model_class.sign_recognizer_v1 import *
+from src.model_class.transformer_sign_recognizer import *
+from src.train_model.train import *
+from src.train_model.CustomDataset import *
+from src.train_model.parse_args import *
+from src.train_model.init_train_data import *
+from src.train_model.research_mode import *
+from src.train_model.ConfusedSets import *
+from src.train_model.TrainStat import *
 
-parser: argparse.ArgumentParser = argparse.ArgumentParser(
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-parser.add_argument(
-    '--trainset',
-    help='File path to the training set.',
-    required=True)
-parser.add_argument(
-    '--arch',
-    help='Model architecture to use. (Available: v1)',
-    required=False,
-    default='v1')
-parser.add_argument(
-    '--memory_frame',
-    help='Number of frame in the past the model will see (Default: None (Maximum possible frame in the past the trainset have))',
-    required=False,
-    default=None)
-parser.add_argument(
-    '--name',
-    help='Name of the model',
-    required=False,
-    default=None)
+import torch
 
-args: argparse.Namespace = parser.parse_args()
+args: Args = parse_args()
 
-train_data: TrainData2 = TrainData2.from_cbor_file(args.trainset)
+model: SignRecognizerTransformer = None
 
-memory_frame: int = train_data.info.memory_frame
-if args.memory_frame is not None and int(args.memory_frame) <= memory_frame:
-    memory_frame = int(args.memory_frame)
+copy_previous_model: bool = False
+
+if args.model_path:
+    print("Loading model...", end="", flush=True)
+    copy_previous_model = True
+    model = SignRecognizerTransformer.loadModelFromDir(args.model_path, args.device)
+    print("[DONE]")
 
 
+current_time = time.strftime('%d-%m-%Y_%H-%M-%S')
+train_data, validation_data, confuse_data, model_info, weights_balance, confused_sets, train_stats = init_train_set(args)
 
-match args.arch:
-    case 'v1':
-        model = SignRecognizerV1(ModelInfo.build(
-            memory_frame,
-            train_data.info.active_gestures,
-            train_data.info.labels,
-            name=args.name,
-            intermediate_layers=[64, 64]))
-        validation_data: TrainData2 = None
-        train_data, validation_data = train_data.split_trainset(0.8)
-        # print(train_data.getNumberOfSamples(), validation_data.getNumberOfSamples())
+if model is None:
+    model = SignRecognizerTransformer(model_info, args.d_model, args.num_heads, args.num_layers, device=args.device)
 
-        model.trainModel(train_data, validation_data=validation_data)
-        model.saveModel()
+print("Starting training...")
+train_stats = train_model(model, args.device, confused_sets, train_data, train_stats, validation_data, confuse_data, num_epochs=args.epoch, weights_balance=weights_balance)
 
-    case _:
-        raise ValueError(f"Model architecture {args.arch} not found.")
+nb_prev_model: int = 0
+if copy_previous_model:
+    path: str = args.model_path + "/previous_models/"
+    os.makedirs(path, exist_ok=True)
+
+    nb_prev_model = len(os.listdir(path))
+
+    pth_file = model.info.name + ".pth"
+    shutil.copy(args.model_path + "/" + pth_file, path)
+    os.rename(path + pth_file, f"{path}/{model.info.name}_{nb_prev_model}.pth")
+
+    model.saveModel(args.model_path)
+    nb_prev_model =+ 1
+else:
+    args.model_path = model.saveModel()
+    try:
+        shutil.rmtree(args.model_path + "/train_stats")
+    except Exception as e:
+        print(e)
+    try:
+        shutil.rmtree(args.model_path + "/previous_models")
+    except Exception as e:
+        print(e)
+
+train_stats.rename(model.info.name, nb_prev_model)
+os.makedirs(args.model_path + "/train_stats/", exist_ok=True)
+train_stats.save(f"{args.model_path}/train_stats/{train_stats.name}.json")
