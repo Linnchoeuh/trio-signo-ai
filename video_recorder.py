@@ -4,10 +4,11 @@ import json
 import argparse
 import numpy as np
 from datetime import datetime
-from src.datasample import DataSample, DataSample2
-from src.video_cropper import VideoCropper
+from src.datasample import DataSample2
+# from src.video_cropper import VideoCropper
 from run_model import load_hand_landmarker, track_hand, draw_land_marks, recognize_sign
 from src.model_class.sign_recognizer_v1 import *
+from src.model_class.transformer_sign_recognizer import *
 
 ESC = 27
 SPACE = 32
@@ -24,18 +25,34 @@ screenshot_delay = 0  # Delay before saving screenshots
 parser = argparse.ArgumentParser(description="Sign recognition with video recording.")
 parser.add_argument("--label", type=str, nargs="?", default="undefined", help="Label for the video files (default: undefined)")
 parser.add_argument("--model", required=True, help="Path to the folder containing the sign recognition model.")
+parser.add_argument("--counter-example", action='store_true', help="Will save the sign as a counter example of the label set in --label.")
 args = parser.parse_args()
 video_label = args.label
+counter_example: bool = args.counter_example
 
 # Load models
 print("Loading sign recognition model...")
-sign_rec: SignRecognizerV1 = SignRecognizerV1.loadModelFromDir(args.model)
+sign_rec: SignRecognizerTransformer = SignRecognizerTransformer.loadModelFromDir(args.model)
 
 print("Loading hand landmarker...")
-handland_marker = load_hand_landmarker(1)
+handland_marker = load_hand_landmarker(2)
+
+def list_available_cameras(max_cameras=10):
+    available_cameras = []
+
+    for i in range(max_cameras):
+        cap = cv2.VideoCapture(i)  # Essaye d'ouvrir la caméra i
+        if cap.isOpened():
+            available_cameras.append(i)
+            cap.release()  # Libère la caméra après le test
+
+    return available_cameras
+
+available_cameras = list_available_cameras()
+print(available_cameras)
 
 # Video setup
-record = cv2.VideoCapture(0)
+record = cv2.VideoCapture(available_cameras[0])
 frame_width = int(record.get(3))
 frame_height = int(record.get(4))
 fourcc = cv2.VideoWriter_fourcc(*'XVID')
@@ -88,6 +105,8 @@ while True:
         frame_history.insert_gesture_from_landmarks(0, result)
         while len(frame_history.gestures) > sign_rec.info.memory_frame:
             frame_history.gestures.pop(-1)
+        if sign_rec.info.one_side:
+            frame_history.move_to_one_side()
 
         # frame_history.gestures.reverse()
         recognized_sign, sign_rec_time = recognize_sign(frame_history, sign_rec, sign_rec.info.active_gestures.getActiveFields())
@@ -139,7 +158,11 @@ while True:
             else:
                 is_recording = False
                 out.release()
-                data_sample.to_json_file(f"{save_folder}{video_label}/{file_name}.json")
+                if counter_example:
+                    os.makedirs(f"{save_folder}{video_label}/counter_example", exist_ok=True)
+                    data_sample.to_json_file(f"{save_folder}{video_label}/counter_example/{file_name}.json")
+                else:
+                    data_sample.to_json_file(f"{save_folder}{video_label}/{file_name}.json")
                 update_json(label_json_path, {"filename": file_name, "label": video_label})
 
         elif key == TAB:
@@ -183,7 +206,11 @@ while True:
 
                 result, _ = track_hand(og_frame, handland_marker)
                 image_sample.insert_gesture_from_landmarks(0, result)
-                image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
+                if counter_example:
+                    os.makedirs(f"{save_folder}{image_label}/counter_example", exist_ok=True)
+                    image_sample.to_json_file(f"{save_folder}{image_label}/counter_example/{file_name}.json")
+                else:
+                    image_sample.to_json_file(f"{save_folder}{image_label}/{file_name}.json")
 
 
 record.release()

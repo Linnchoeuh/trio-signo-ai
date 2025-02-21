@@ -1,5 +1,6 @@
 import math
 import random
+import torch
 from dataclasses import dataclass, fields
 from typing import Generic, TypeVar
 
@@ -18,7 +19,10 @@ def is_valid_field(field_name: str, valid_fields: list[str] | None) -> bool:
 T = TypeVar('T')
 @dataclass
 class Gestures(Generic[T]):
-    # NEVER CHANGE THE POINTS ORDER OR IT WILL BACKWARD COMPATIBILITY
+    # NEVER CHANGE THE POINTS ORDER OR IT WILL BREAK BACKWARD COMPATIBILITY
+
+    # Always start your variable name with the hand side (l_ or r_)
+    # Method move_one_side() use this prefix to work
 
     # Left hand data
     l_hand_position: T = None
@@ -68,8 +72,11 @@ class Gestures(Generic[T]):
     r_pinky_dip: T = None
     r_pinky_tip: T = None
 
-FIELDS: list[str] = [field.name for field in fields(Gestures())]
+    l_hand_velocity: T = None
+    r_hand_velocity: T = None
 
+FIELDS: list[str] = [field.name for field in fields(Gestures())]
+FIELD_DIMENSION: int = 3
 
 @dataclass
 class ActiveGestures(Gestures[bool | None]):
@@ -156,7 +163,10 @@ LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
 LEFT_HAND_POSITION: ActiveGestures = ActiveGestures(
     l_hand_position=True
 )
-LEFT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION])
+LEFT_HAND_VELOCITY: ActiveGestures = ActiveGestures(
+    l_hand_velocity=True
+)
+LEFT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, LEFT_HAND_POSITION, LEFT_HAND_VELOCITY])
 RIGHT_HAND_POINTS: ActiveGestures = ActiveGestures(
     r_wrist=True,
     r_thumb_cmc=True,
@@ -183,10 +193,14 @@ RIGHT_HAND_POINTS: ActiveGestures = ActiveGestures(
 RIGHT_HAND_POSITION: ActiveGestures = ActiveGestures(
     r_hand_position=True
 )
-RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION])
+RIGHT_HAND_VELOCITY: ActiveGestures = ActiveGestures(
+    r_hand_velocity=True
+)
+RIGHT_HAND_FULL: ActiveGestures = ActiveGestures.buildWithPreset([RIGHT_HAND_POINTS, RIGHT_HAND_POSITION, RIGHT_HAND_VELOCITY])
 
 HANDS_POINTS: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POINTS, RIGHT_HAND_POINTS])
 HANDS_POSITION: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_POSITION, RIGHT_HAND_POSITION])
+HANDS_VELOCITY: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_VELOCITY, RIGHT_HAND_VELOCITY])
 
 HANDS_FULL: ActiveGestures = ActiveGestures.buildWithPreset([LEFT_HAND_FULL, RIGHT_HAND_FULL])
 ALL_GESTURES: ActiveGestures = ActiveGestures()
@@ -205,6 +219,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
         LEFT_HAND_POSITION,
         "Will only provide information about left hand position."
     ),
+    'left_hand_velocity': (
+        LEFT_HAND_VELOCITY,
+        "Will only provide information about left hand velocity."
+    ),
     'left_hand_full': (
         LEFT_HAND_FULL,
         "Will provide information about left hand finger position, hand rotation and position."
@@ -217,6 +235,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
         RIGHT_HAND_POSITION,
         "Will only provide information about right hand position."
     ),
+    'right_hand_velocity': (
+        RIGHT_HAND_VELOCITY,
+        "Will only provide information about right hand velocity."
+    ),
     'right_hand_full': (
         RIGHT_HAND_FULL,
         "Will provide information about right hand finger position, hand rotation and position."
@@ -228,6 +250,10 @@ ACTIVATED_GESTURES_PRESETS: dict[str, tuple[ActiveGestures, str]] = {
     'hands_position': (
         HANDS_POSITION,
         "Will only provide information about both hands position."
+    ),
+    'hands_velocity': (
+        HANDS_VELOCITY,
+        "Will only provide information about both hands velocity."
     ),
     'hands_full': (
         HANDS_FULL,
@@ -250,6 +276,14 @@ class DataGestures(Gestures[list[float, float, float] | None]):
     def buildFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
         tmp = DataGestures()
         tmp.setHandsFromHandLandmarkerResult(landmark_result, valid_fields)
+        return tmp
+
+    @classmethod
+    def from1DArray(self, array: list[float], valid_fields: list[str] = None) -> "DataGestures":
+        tmp = DataGestures()
+        valid_fields = get_fields(valid_fields)
+        for i, field_name in enumerate(valid_fields):
+            setattr(tmp, field_name, array[i * FIELD_DIMENSION: (i + 1) * FIELD_DIMENSION])
         return tmp
 
     def setHandsFromHandLandmarkerResult(self, landmark_result: HandLandmarkerResult, valid_fields: list[str] = None) -> "DataGestures":
@@ -424,16 +458,11 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         return self
 
     def get1DArray(self, valid_fields: list[str] = None) -> list[float]:
-        data: list[float] = []
-        valid_fields = get_fields(valid_fields)
+        valid_fields = get_fields(valid_fields)  # Récupérer les bons champs
+        return [coord for field_name in valid_fields for coord in (getattr(self, field_name, [0, 0, 0]) or [0, 0, 0])]
 
-        for field_name in valid_fields:
-            attr: list[float, float, float] | None = getattr(self, field_name)
-            if attr is None:
-                attr = [0, 0, 0]
-                # raise ValueError(f"Field {field_name} is None")
-            data += attr
-        return data
+    def toTensor(self, valid_fields: list[str] = FIELDS, device: torch.device = torch.device("cpu")) -> torch.Tensor:
+        return torch.as_tensor(self.get1DArray(valid_fields), dtype=torch.float32).to(device)
 
     def noise(self, range: float = 0.005, valid_fields: list[str] | None = None) -> "DataGestures":
         """Will randomize the gesture points by doing `new_val = old_val + rand_val(-range, range)` to each selected point.
@@ -471,7 +500,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         # Mirroring the hand make the hand become the opposite hand
         # This if statement will swap the left hand and right hand data
         if (x + y + z) % 2 == 1:
-            self.swap_hands()
+            self.swapHands()
         return self
 
     def rotate(self, x: float = 0, y: float = 0, z: float = 0, valid_fields: list[str] | None = None) -> "DataGestures":
@@ -509,7 +538,7 @@ class DataGestures(Gestures[list[float, float, float] | None]):
             setattr(self, field_name, field_value)
         return self
 
-    def swap_hands(self) -> "DataGestures":
+    def swapHands(self) -> "DataGestures":
         """Should not be used.<br>
         This function is used to swap the left hand and right hand data,
         in case the hands are mirrored or the data is not in the right order.
@@ -545,4 +574,24 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         self.r_pinky_dip, self.l_pinky_dip = self.l_pinky_dip, self.r_pinky_dip
         self.r_pinky_tip, self.l_pinky_tip = self.l_pinky_tip, self.r_pinky_tip
 
+        self.r_hand_position, self.l_hand_position = self.l_hand_position, self.r_hand_position
+        self.r_hand_velocity, self.l_hand_velocity = self.l_hand_velocity, self.r_hand_velocity
+
         return self
+
+    def moveToOneSide(self, right_side: bool = True) -> "DataGestures":
+        dest_side = "r_" if right_side else "l_"
+        src_side = "l_" if right_side else "r_"
+
+        for field_name in FIELDS:
+            if field_name.startswith(src_side):
+                src_side_val: list[float] | None = getattr(self, field_name)
+                opposite_field_name = field_name.replace(src_side, dest_side, 1)
+                dest_side_value: list[float] | None = getattr(self, field_name.replace(src_side, dest_side))
+                if dest_side_value is None:
+                    if src_side_val is not None:
+                        src_side_val[0] *= -1
+                        # src_side_val[1] *= -1
+                        src_side_val[2] *= -1
+                    setattr(self, opposite_field_name, src_side_val)
+                    setattr(self, field_name, None)
