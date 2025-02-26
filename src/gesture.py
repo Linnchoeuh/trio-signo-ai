@@ -90,8 +90,7 @@ class ActiveGestures(Gestures[bool | None]):
     @classmethod
     def buildWithPreset(self, gestures_to_set: Gestures[bool | None] | list[Gestures[bool | None]]) -> "ActiveGestures":
         tmp = ActiveGestures()
-        tmp.setActiveGestures(gestures_to_set)
-        return tmp
+        return tmp.setActiveGestures(gestures_to_set)
 
     def setActiveGestures(self, gestures_to_set: Gestures[bool | None] | list[Gestures[bool | None]]) -> "ActiveGestures":
         if not isinstance(gestures_to_set, list):
@@ -295,9 +294,35 @@ class DataGestures(Gestures[list[float, float, float] | None]):
         Args:
             landmark_result (HandLandmarkerResult): _description_
         """
+
+        hand_fields: list[str] = [
+            "wrist",
+            "thumb_cmc",
+            "thumb_mcp",
+            "thumb_ip",
+            "thumb_tip",
+            "index_mcp",
+            "index_pip",
+            "index_dip",
+            "index_tip",
+            "middle_mcp",
+            "middle_pip",
+            "middle_dip",
+            "middle_tip",
+            "ring_mcp",
+            "ring_pip",
+            "ring_dip",
+            "ring_tip",
+            "pinky_mcp",
+            "pinky_pip",
+            "pinky_dip",
+            "pinky_tip"
+        ]
+
         for i in range(len(landmark_result.hand_world_landmarks)):
             handlandmark: list[NormalizedLandmark] = landmark_result.hand_landmarks[i]
             handworldlandmark: list[NormalizedLandmark] = landmark_result.hand_world_landmarks[i]
+
             if landmark_result.handedness[i][0].category_name == "Right":
                 """
                 We use the wrist position to get the hand location
@@ -309,48 +334,10 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                     self.r_hand_position = [handlandmark[0].x - 0.5, handlandmark[0].y - 0.5, handlandmark[0].z - 0.5]
 
                 # Adding position of each finger articulation
-                if valid_fields is None or "r_wrist" in valid_fields:
-                    self.r_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
-                if valid_fields is None or "r_thumb_cmc" in valid_fields:
-                    self.r_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
-                if valid_fields is None or "r_thumb_mcp" in valid_fields:
-                    self.r_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
-                if valid_fields is None or "r_thumb_ip" in valid_fields:
-                    self.r_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
-                if valid_fields is None or "r_thumb_tip" in valid_fields:
-                    self.r_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
-                if valid_fields is None or "r_index_mcp" in valid_fields:
-                    self.r_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
-                if valid_fields is None or "r_index_pip" in valid_fields:
-                    self.r_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
-                if valid_fields is None or "r_index_dip" in valid_fields:
-                    self.r_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
-                if valid_fields is None or "r_index_tip" in valid_fields:
-                    self.r_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
-                if valid_fields is None or "r_middle_mcp" in valid_fields:
-                    self.r_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
-                if valid_fields is None or "r_middle_pip" in valid_fields:
-                    self.r_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
-                if valid_fields is None or "r_middle_dip" in valid_fields:
-                    self.r_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
-                if valid_fields is None or "r_middle_tip" in valid_fields:
-                    self.r_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
-                if valid_fields is None or "r_ring_mcp" in valid_fields:
-                    self.r_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
-                if valid_fields is None or "r_ring_pip" in valid_fields:
-                    self.r_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
-                if valid_fields is None or "r_ring_dip" in valid_fields:
-                    self.r_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
-                if valid_fields is None or "r_ring_tip" in valid_fields:
-                    self.r_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
-                if valid_fields is None or "r_pinky_mcp" in valid_fields:
-                    self.r_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
-                if valid_fields is None or "r_pinky_pip" in valid_fields:
-                    self.r_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
-                if valid_fields is None or "r_pinky_dip" in valid_fields:
-                    self.r_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
-                if valid_fields is None or "r_pinky_tip" in valid_fields:
-                    self.r_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                for j, field_name in enumerate(hand_fields):
+                    if valid_fields is None or f"r_{field_name}" in valid_fields:
+                        setattr(self, f"r_{field_name}", [handworldlandmark[j].x, handworldlandmark[j].y, handworldlandmark[j].z])
+
             else:
                 """
                 We use the wrist position to get the hand location
@@ -362,48 +349,9 @@ class DataGestures(Gestures[list[float, float, float] | None]):
                     self.l_hand_position = [handlandmark[0].x, handlandmark[0].y, handlandmark[0].z]
 
                 # Adding position of each finger articulation
-                if valid_fields is None or "l_wrist" in valid_fields:
-                    self.l_wrist = [handworldlandmark[0].x, handworldlandmark[0].y, handworldlandmark[0].z]
-                if valid_fields is None or "l_thumb_cmc" in valid_fields:
-                    self.l_thumb_cmc = [handworldlandmark[1].x, handworldlandmark[1].y, handworldlandmark[1].z]
-                if valid_fields is None or "l_thumb_mcp" in valid_fields:
-                    self.l_thumb_mcp = [handworldlandmark[2].x, handworldlandmark[2].y, handworldlandmark[2].z]
-                if valid_fields is None or "l_thumb_ip" in valid_fields:
-                    self.l_thumb_ip = [handworldlandmark[3].x, handworldlandmark[3].y, handworldlandmark[3].z]
-                if valid_fields is None or "l_thumb_tip" in valid_fields:
-                    self.l_thumb_tip = [handworldlandmark[4].x, handworldlandmark[4].y, handworldlandmark[4].z]
-                if valid_fields is None or "l_index_mcp" in valid_fields:
-                    self.l_index_mcp = [handworldlandmark[5].x, handworldlandmark[5].y, handworldlandmark[5].z]
-                if valid_fields is None or "l_index_pip" in valid_fields:
-                    self.l_index_pip = [handworldlandmark[6].x, handworldlandmark[6].y, handworldlandmark[6].z]
-                if valid_fields is None or "l_index_dip" in valid_fields:
-                    self.l_index_dip = [handworldlandmark[7].x, handworldlandmark[7].y, handworldlandmark[7].z]
-                if valid_fields is None or "l_index_tip" in valid_fields:
-                    self.l_index_tip = [handworldlandmark[8].x, handworldlandmark[8].y, handworldlandmark[8].z]
-                if valid_fields is None or "l_middle_mcp" in valid_fields:
-                    self.l_middle_mcp = [handworldlandmark[9].x, handworldlandmark[9].y, handworldlandmark[9].z]
-                if valid_fields is None or "l_middle_pip" in valid_fields:
-                    self.l_middle_pip = [handworldlandmark[10].x, handworldlandmark[10].y, handworldlandmark[10].z]
-                if valid_fields is None or "l_middle_dip" in valid_fields:
-                    self.l_middle_dip = [handworldlandmark[11].x, handworldlandmark[11].y, handworldlandmark[11].z]
-                if valid_fields is None or "l_middle_tip" in valid_fields:
-                    self.l_middle_tip = [handworldlandmark[12].x, handworldlandmark[12].y, handworldlandmark[12].z]
-                if valid_fields is None or "l_ring_mcp" in valid_fields:
-                    self.l_ring_mcp = [handworldlandmark[13].x, handworldlandmark[13].y, handworldlandmark[13].z]
-                if valid_fields is None or "l_ring_pip" in valid_fields:
-                    self.l_ring_pip = [handworldlandmark[14].x, handworldlandmark[14].y, handworldlandmark[14].z]
-                if valid_fields is None or "l_ring_dip" in valid_fields:
-                    self.l_ring_dip = [handworldlandmark[15].x, handworldlandmark[15].y, handworldlandmark[15].z]
-                if valid_fields is None or "l_ring_tip" in valid_fields:
-                    self.l_ring_tip = [handworldlandmark[16].x, handworldlandmark[16].y, handworldlandmark[16].z]
-                if valid_fields is None or "l_pinky_mcp" in valid_fields:
-                    self.l_pinky_mcp = [handworldlandmark[17].x, handworldlandmark[17].y, handworldlandmark[17].z]
-                if valid_fields is None or "l_pinky_pip" in valid_fields:
-                    self.l_pinky_pip = [handworldlandmark[18].x, handworldlandmark[18].y, handworldlandmark[18].z]
-                if valid_fields is None or "l_pinky_dip" in valid_fields:
-                    self.l_pinky_dip = [handworldlandmark[19].x, handworldlandmark[19].y, handworldlandmark[19].z]
-                if valid_fields is None or "l_pinky_tip" in valid_fields:
-                    self.l_pinky_tip = [handworldlandmark[20].x, handworldlandmark[20].y, handworldlandmark[20].z]
+                for j, field_name in enumerate(hand_fields):
+                    if valid_fields is None or f"l_{field_name}" in valid_fields:
+                        setattr(self, f"l_{field_name}", [handworldlandmark[j].x, handworldlandmark[j].y, handworldlandmark[j].z])
 
         return self
 
