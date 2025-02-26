@@ -14,6 +14,7 @@ from src.api.middlewares.init import InitMiddleware
 from src.api.endpoints.ping import ping
 from src.api.endpoints.get_alphabet import get_alphabet
 from src.api.endpoints.get_alphabet_end import get_alphabet_end
+from src.api.endpoints.get_sign_recognizer_model import get_sign_recognizer_model
 
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
@@ -79,6 +80,8 @@ def main():
                                "sample_history": datasamples_instance})
     app.add_url_rule('/get-alphabet-end', view_func=get_alphabet_end, methods=['DELETE'],
                      defaults={"sample_history": datasamples_instance})
+
+    app.add_url_rule('/get-sign-recognizer-model/<model_name>', view_func=get_sign_recognizer_model, methods=['GET'])
 
 
     if args.debug:
