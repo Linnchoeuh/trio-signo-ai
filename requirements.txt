@@ -11,6 +11,7 @@ optuna
 pygame
 onnx
 onnxruntime
+numpy
 
 # Video recorder
 moviepy
