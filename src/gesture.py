@@ -4,6 +4,7 @@ import torch
 from dataclasses import dataclass, fields
 from typing import Generic, TypeVar
 
+import numpy as np
 from mediapipe.framework.formats import landmark_pb2
 from mediapipe.tasks.python.vision.hand_landmarker import *
 from mediapipe.tasks.python.components.containers.category import *
@@ -407,7 +408,13 @@ class DataGestures(Gestures[list[float, float, float] | None]):
 
     def get1DArray(self, valid_fields: list[str] = None) -> list[float]:
         valid_fields = get_fields(valid_fields)  # Récupérer les bons champs
-        return [coord for field_name in valid_fields for coord in (getattr(self, field_name, [0, 0, 0]) or [0, 0, 0])]
+        tmp = [coord for field_name in valid_fields for coord in (getattr(self, field_name, [0, 0, 0]) or [0, 0, 0])]
+        # print(self, "\n")
+        # print(tmp, "\n\n")
+        return tmp
+
+    def toNumpy(self, valid_fields: list[str] = FIELDS) -> np.ndarray:
+        return np.array(self.get1DArray(valid_fields), dtype=np.float32)
 
     def toTensor(self, valid_fields: list[str] = FIELDS, device: torch.device = torch.device("cpu")) -> torch.Tensor:
         return torch.as_tensor(self.get1DArray(valid_fields), dtype=torch.float32).to(device)
