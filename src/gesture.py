@@ -76,6 +76,36 @@ class Gestures(Generic[T]):
     l_hand_velocity: T = None
     r_hand_velocity: T = None
 
+    def __new__(cls, *args, **kwargs):
+        print(f"Creating instance of {cls.__name__}")
+        return super().__new__(cls)  # Ensures correct instance type
+
+    @classmethod
+    def from1DArray(cls, array: list[T], valid_fields: list[str] = None) -> "Gestures":
+        tmp = cls()
+        valid_fields = get_fields(valid_fields)
+        for i, field_name in enumerate(valid_fields):
+            setattr(tmp, field_name, array[i * FIELD_DIMENSION: (i + 1) * FIELD_DIMENSION])
+        return tmp
+
+    @classmethod
+    def fromDict(cls, data: dict[str, T], valid_fields: list[str] = None) -> "Gestures":
+        tmp = cls()
+        valid_fields = get_fields(valid_fields)
+        for field_name in valid_fields:
+            setattr(tmp, field_name, data.get(field_name))
+        return tmp
+
+    def setFieldsTo(self, value: T, valid_fields: list[str] = None) -> "Gestures":
+        if valid_fields is None:
+            valid_fields = FIELDS
+        for field_name in valid_fields:
+            setattr(self, field_name, value)
+        return self
+
+    def to_dict(self) -> dict[str, bool]:
+        return self.__dict__
+
 FIELDS: list[str] = [field.name for field in fields(Gestures())]
 FIELD_DIMENSION: int = 3
 
@@ -111,13 +141,6 @@ class ActiveGestures(Gestures[bool | None]):
                 # print("=>", field_name, getattr(self, field_name))
         return self
 
-    def setFieldsTo(self, value, valid_fields: list[str] = None) -> "ActiveGestures":
-        if valid_fields is None:
-            valid_fields = FIELDS
-        for field_name in valid_fields:
-            setattr(self, field_name, value)
-        return self
-
     def resetActiveGestures(self, valid_fields: list[str] = None) -> "ActiveGestures":
         return self.setFieldsTo(None, valid_fields)
 
@@ -134,8 +157,6 @@ class ActiveGestures(Gestures[bool | None]):
                 active_fields.append(field_name)
         return active_fields
 
-    def to_dict(self) -> dict[str, bool]:
-        return self.__dict__
 
 LEFT_HAND_POINTS: ActiveGestures = ActiveGestures(
     l_wrist=True,
