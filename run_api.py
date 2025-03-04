@@ -13,6 +13,7 @@ from src.api.middlewares.init import InitMiddleware
 
 from src.api.endpoints.ping import ping
 from src.api.endpoints.get_alphabet import get_alphabet
+from src.api.endpoints.get_alphabet2 import get_alphabet2
 from src.api.endpoints.get_alphabet_end import get_alphabet_end
 from src.api.endpoints.get_sign_recognizer_model import get_sign_recognizer_model
 
@@ -77,6 +78,9 @@ def main():
     app.add_url_rule('/get-alphabet', view_func=get_alphabet, methods=['POST'],
                      defaults={"hand_tracker": hand_tracker,
                                "alphabet_recognizer": alphabet_recognizer,
+                               "sample_history": datasamples_instance})
+    app.add_url_rule('/get-alphabet2', view_func=get_alphabet2, methods=['POST'],
+                     defaults={"alphabet_recognizer": alphabet_recognizer,
                                "sample_history": datasamples_instance})
     app.add_url_rule('/get-alphabet-end', view_func=get_alphabet_end, methods=['DELETE'],
                      defaults={"sample_history": datasamples_instance})
